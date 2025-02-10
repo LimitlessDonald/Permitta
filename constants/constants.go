@@ -11,3 +11,7 @@ const (
 	EntityRole                         = "role"
 	EntityUser                         = "user"
 )
+
+const (
+	NotationSectionSeparator = "|"
+)

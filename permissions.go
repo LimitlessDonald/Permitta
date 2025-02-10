@@ -3,6 +3,7 @@ package permitta
 import (
 	"fmt"
 	constants "gitlab.com/launchbeaver/permitta/constants"
+	"regexp"
 	"strings"
 	"time"
 )
@@ -492,3 +493,187 @@ func isEntityValid(entityName string) bool {
 // Then write a function to intepreter that shorthand, its basically just parsing using strings.split , you might even create your own standard of writing permissions and propose it to a body tasked with standardizing things like this
 // FOllowing the unix permission pattern for each entity, you can do , "crud-","c"{all:0,batch:1,minute:0,hour:5,day:0,week:45,fortnight:0,monthly:0,quarterly:0,yearly:0,customDurations:[per_5_minutes_4,per_3_days_50]|r:....
 // crud-|c=month:0,day:100,batch:1,minute:5,hour:20,week:500,fortnight:700,year:10000,quarter:5000,custom:[per_5_minutes_4,per_3_days_50]|r=
+
+func NotationToPermission(notation string) Permission {
+	var finalPermission Permission
+	// just in case there is space in the string, let's trim space, but there shouldn't be space
+	notation = strings.TrimSpace(notation)
+	includeThisActionLimit := false
+	var actionLimit ActionLimit
+	// first let's split the notation into its different section
+	if strings.Contains(notation, constants.NotationSectionSeparator) {
+		notationSections := strings.Split(notation, constants.NotationSectionSeparator)
+		// There should always be 6 sections , if there is less than or more than  6, return empty permissions
+		if len(notationSections) != 6 {
+			fmt.Println("Malformed permission notation")
+			return Permission{}
+		}
+
+		// if we got here, it means the notation is properly formed so far
+		// let's check the first section if its properly formed, if it is we can proceed,
+		// it should always be 5 characters long , because it should be like "crude" , which stands for CREATE, READ, UPDATE, DELETE, EXECUTE . , if we don't want to grant permission to any of these actions any of the letters in "crude" can be replaced with a minus sign "-"
+		// But the letter have to ALWAYS follow that order, or be replaced by "-"
+		// so let's use regex
+		firstSectionPattern := regexp.MustCompile(`^([c-][r-][u-][d-][e-])$`)
+		if firstSectionPattern.MatchString(notationSections[0]) == false {
+			fmt.Println("Malformed permission notation")
+			return Permission{}
+		}
+
+		// if we got here it means the pattern matched and we are good to set the permission values for the actions
+		for i, actionPermissionInit := range notationSections[0] {
+
+			if i == 0 {
+				if string(actionPermissionInit) == "c" {
+					finalPermission.Create = true
+				}
+			}
+
+			if i == 1 {
+				if string(actionPermissionInit) == "r" {
+					finalPermission.Read = true
+				}
+			}
+
+			if i == 2 {
+				if string(actionPermissionInit) == "u" {
+					finalPermission.Update = true
+				}
+			}
+
+			if i == 3 {
+				if string(actionPermissionInit) == "d" {
+					finalPermission.Delete = true
+				}
+			}
+
+			if i == 4 {
+				if string(actionPermissionInit) == "e" {
+					finalPermission.Execute = true
+				}
+			}
+
+		}
+
+		//NOTE document this :
+
+		// Let's move to the remaining sections, we can just loop through them , since they have similar syntax
+		// the remaining sections is for limits , create limits for example would be defined like :
+		// c=month:0,day:100,batch:1,minute:5,hour:20,week:500,fortnight:700,year:10000,quarter:5000,custom:[per_5_minutes_4,per_3_days_50]
+		// for other action types "c=" can just be replaced with "r=" or "u=" or "d=" or "e="
+		// Just like the action permission section similarly the proceeding sections should also follow an order
+		// e.g c-ude|c=....|r=...|u=...|d=...|e=...
+		// Its required that in each action limit section, at least the batch limit should be set
+		// The individual limits within each action limit section can be arranged in any order
+		// If any limit is excluded, its assumed that the value is unlimited , batch limit can never be unlimited, this is why it's a required limit/value for all action limit sections, where corresponding action permission is granted
+		// Let's start the loop , we would be starting the loop from index 1, since index 0 is the actionType permissions which we have already handled
+		// Action Limit sections can be left empty if only there corresponding Action permission is not granted .
+		// for example if you have crud-|c=.... execute limit can be excluded like this crud-|c=...|r=...|u=...|d=...|- Note the minus sign , in the execute limit section
+		for i := 1; i < len(notationSections); i++ {
+			//reset include action limit
+			includeThisActionLimit = false
+			// Let's check if current section is properly formed, this isn't a perfect test for a properly formed action limit section , but it would do for now
+			// todo improve this
+
+			// if we are in index 1, ensure it starts with c=, else output error , do same for the other action limits in the correct sequence/order
+			if i == 1 {
+				if strings.HasPrefix(notationSections[i], "c=") == false && finalPermission.Create == true {
+					fmt.Println("Malformed notation: Create action limit section has to start with 'c=', since Create permission is granted ")
+					return Permission{}
+				}
+
+				if strings.HasPrefix(notationSections[i], "c=") == true && finalPermission.Create == true {
+					includeThisActionLimit = true
+					actionLimit = finalPermission.CreateActionLimits
+				}
+
+			}
+			if i == 2 {
+
+				if strings.HasPrefix(notationSections[i], "r=") == false && finalPermission.Read == true {
+					fmt.Println("Malformed notation: Read action limit section has to start with 'r=', since Read permission is granted  ")
+					return Permission{}
+				}
+				if strings.HasPrefix(notationSections[i], "r=") == true && finalPermission.Read == true {
+					includeThisActionLimit = true
+					actionLimit = finalPermission.ReadActionLimits
+				}
+			}
+
+			if i == 3 {
+				if strings.HasPrefix(notationSections[i], "u=") == false && finalPermission.Update == true {
+					fmt.Println("Malformed notation: Update action limit section has to start with 'u=', since Update permission is granted  ")
+					return Permission{}
+				}
+				if strings.HasPrefix(notationSections[i], "u=") == true && finalPermission.Update == true {
+					includeThisActionLimit = true
+					actionLimit = finalPermission.UpdateActionLimits
+				}
+			}
+			if i == 4 {
+				if strings.HasPrefix(notationSections[i], "d=") == false && finalPermission.Delete == true {
+					fmt.Println("Malformed notation: Delete action limit section has to start with 'd=', since Delete permission is granted  ")
+					return Permission{}
+				}
+				if strings.HasPrefix(notationSections[i], "d=") == true && finalPermission.Delete == true {
+					includeThisActionLimit = true
+					actionLimit = finalPermission.DeleteActionLimits
+				}
+			}
+
+			if i == 5 {
+				if strings.HasPrefix(notationSections[i], "e=") == false && finalPermission.Execute == true {
+					fmt.Println("Malformed notation: Execute action limit section has to start with 'e=', since Execute permission is granted ")
+					return Permission{}
+				}
+				if strings.HasPrefix(notationSections[i], "e=") == true && finalPermission.Execute == true {
+					includeThisActionLimit = true
+					actionLimit = finalPermission.ExecuteActionLimits
+				}
+
+			}
+
+			if includeThisActionLimit == true {
+				//split and loop through the current action limit to add
+				// first split the action key from the limit list
+				splitActionLimitSection := strings.Split(notationSections[i], "=")
+				// now let's split the limits itself , and assign the limits where they are available
+				finalPermission = getNotationActionLimits(splitActionLimitSection[1])
+			}
+
+		}
+
+	}
+	return Permission{}
+}
+
+func isNotationActionBatchLimitSet() {
+
+}
+
+func getNotationActionLimits(actionLimitsString string, finalPermission Permission) (Permission, error) {
+	// for scenario where there is just for one entity and there is no separator , just a single word denoting the entity
+	if strings.Contains(actionLimitsString, constants.OrderSeparator) == false {
+		if isEntityValid(permissionOrder) {
+			return []string{permissionOrder}
+		}
+	}
+
+	// for other scenarios where the separator is included
+	if strings.Contains(permissionOrder, constants.OrderSeparator) == true {
+		splitOrder := strings.Split(permissionOrder, constants.OrderSeparator)
+		if len(splitOrder) > 0 {
+
+			// loop through the orders in the slice and if current entity is valid append it to the final order
+			for i := 0; i < len(splitOrder); i++ {
+
+				if isEntityValid(splitOrder[i]) == true {
+					finalOrder = append(finalOrder, splitOrder[i])
+				}
+			}
+
+		}
+		return finalOrder
+	}
+
+}
