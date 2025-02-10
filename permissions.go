@@ -3,13 +3,12 @@ package permitta
 import (
 	"fmt"
 	constants "gitlab.com/launchbeaver/permitta/constants"
-	"reflect"
 	"strings"
 	"time"
 )
 
 // TODO create dart client of this , when its recieving permissions in json
-// todo permission check order allowed or not by CRUDE - > not allowed by user->not allowed by role -> not allowed by group -> allowed by user-> allowed by role -> allowed by group -> then  time based limits starting with atATime
+// todo permission check order allowed or not by CRUDE - > not allowed by user->not allowed by role -> not allowed by group -> allowed by user-> allowed by role -> allowed by group -> then  time based limits starting with Batch
 
 // Permission is a very important struct that can be used as an embedded struct to control permissions for just about anything or used as a type, of a struct field
 type Permission struct {
@@ -19,219 +18,49 @@ type Permission struct {
 	Delete  bool `json:"delete"`
 	Execute bool `json:"execute"`
 
-	// START CREATE FIELDS
-	//UsersNotAllowedToCreate         []string `json:"usersNotAllowedToCreate" ` //slice list of users allowed to create current item, could be unique id , or username, doesn't matter
-	//RolesNotAllowedToCreate         []string `json:"rolesNotAllowedToCreate"`
-	//GroupsNotAllowedToCreate        []string `json:"groupsNotAllowedToCreate"`
-	//DomainsNotAllowedToCreate       []string `json:"domainsNotAllowedToCreate"`
-	//OrganizationsNotAllowedToCreate []string `json:"organizationsNotAllowedToCreate"`
-	//
-	//UsersAllowedToCreate         []string `json:"usersAllowedToCreate" ` //slice list of users allowed to create current item, could be unique id , or username, doesn't matter
-	//RolesAllowedToCreate         []string `json:"rolesAllowedToCreate"`
-	//GroupsAllowedToCreate        []string `json:"groupsAllowedToCreate"`
-	//DomainsAllowedToCreate       []string `json:"domainsAllowedToCreate"`
-	//OrganizationsAllowedToCreate []string `json:"organizationsAllowedToCreate"`
+	CreateActionLimits  ActionLimit
+	ReadActionLimits    ActionLimit
+	UpdateActionLimits  ActionLimit
+	DeleteActionLimits  ActionLimit
+	ExecuteActionLimits ActionLimit
+}
 
-	CreateLimitAllTime        uint   `json:"createLimitAllTime"` // Can be used to control how many of an item can be stored . For example the total file size you can have stored at any time is 5GB , not to be confused with CreateLimitAtATime
-	CreateLimitAtATime        uint   `json:"createLimitAtATime"` // Can be used to limit how many of an item can be created at once, or at a time, for example limiting a user to adding 5 files at once . If this value is 5, the user won't be able to create more than 5 items at once
-	CreateLimitPerMinute      uint   `json:"createLimitPerMinute"`
-	CreateLimitPerHour        uint   `json:"createLimitPerHour"`
-	CreateLimitPerDay         uint   `json:"createLimitPerDay"`
-	CreateLimitPerWeek        uint   `json:"createLimitPerWeek"`
-	CreateLimitPerFortnight   uint   `json:"createLimitPerFortnight"` //to limit items that can be created every two weeks
-	CreateLimitPerMonth       uint   `json:"createLimitPerMonth"`     // Limit for every 30 days from FirstCreateTime  //todo, does it make sense to use FirstCreateTime or LastCreateTime
-	CreateLimitPerQuarter     uint   `json:"createLimitPerQuarter"`   // 3 months, 90 days
-	CreateLimitPerYear        uint   `json:"createLimitPerYear"`
-	CreateLimitCustomDuration string `json:"createLimitCustomDuration"` // can be used to control very fine-grained custom limit , it takes the form "per_uint_duration" , e.g "per_5_minutes"
+type ActionLimit struct {
+	AllTimeLimit         uint     `json:"allTimeLimit"` // Can be used to control how many of an item can be stored . For example the total file size you can have stored at any time is 5GB , not to be confused with DeleteLimitBatch
+	BatchLimit           uint     `json:"batchLimit"`   // Can be used to limit how many of an item can be deleted at once, or at a time, for example limiting a user to adding 5 files at once . If this value is 5, the user won't be able to delete more than 5 items at once
+	PerMinuteLimit       uint     `json:"perMinuteLimit"`
+	PerHourLimit         uint     `json:"perHourLimit"`
+	PerDayLimit          uint     `json:"perDayLimit"`
+	PerWeekLimit         uint     `json:"perWeekLimit"`
+	PerFortnightLimit    uint     `json:"perFortnightLimit"` //to limit items that can be deleted every two weeks
+	PerMonthLimit        uint     `json:"perMonthLimit"`     // Limit for every 30 days from FirstDeleteTime  //todo, does it make sense to use FirstDeleteTime or LastDeleteTime
+	PerQuarterLimit      uint     `json:"perQuarterLimit"`   // 3 months, 90 days
+	PerYearLimit         uint     `json:"perYearLimit"`
+	CustomDurationsLimit []string `json:"customDurationsLimit"`
+}
 
-	// END CREATE FIELDS
-
-	// START READ FIELDS
-	//UsersNotAllowedToRead         []string `json:"usersNotAllowedToRead" `
-	//RolesNotAllowedToRead         []string `json:"rolesNotAllowedToRead"`
-	//GroupsNotAllowedToRead        []string `json:"groupsNotAllowedToRead"`
-	//DomainsNotAllowedToRead       []string `json:"domainsNotAllowedToRead"`
-	//OrganizationsNotAllowedToRead []string `json:"organizationsNotAllowedToRead"`
-	//
-	//UsersAllowedToRead         []string `json:"usersAllowedToRead" `
-	//RolesAllowedToRead         []string `json:"rolesAllowedToRead"`
-	//GroupsAllowedToRead        []string `json:"groupsAllowedToRead"`
-	//DomainsAllowedToRead       []string `json:"domainsAllowedToRead"`
-	//OrganizationsAllowedToRead []string `json:"organizationsAllowedToRead"`
-
-	ReadLimitAllTime        uint   `json:"readLimitAllTime"` // Can be used to control how many of an item can be stored . For example the total file size you can have stored at any time is 5GB , not to be confused with ReadLimitAtATime
-	ReadLimitAtATime        uint   `json:"readLimitAtATime"` // Can be used to limit how many of an item can be read at once, or at a time, for example limiting a user to adding 5 files at once . If this value is 5, the user won't be able to read more than 5 items at once
-	ReadLimitPerMinute      uint   `json:"readLimitPerMinute"`
-	ReadLimitPerHour        uint   `json:"readLimitPerHour"`
-	ReadLimitPerDay         uint   `json:"readLimitPerDay"`
-	ReadLimitPerWeek        uint   `json:"readLimitPerWeek"`
-	ReadLimitPerFortnight   uint   `json:"readLimitPerFortnight"` //to limit items that can be read every two weeks
-	ReadLimitPerMonth       uint   `json:"readLimitPerMonth"`     // Limit for every 30 days from FirstReadTime  //todo, does it make sense to use FirstReadTime or LastReadTime
-	ReadLimitPerQuarter     uint   `json:"readLimitPerQuarter"`   // 3 months, 90 days
-	ReadLimitPerYear        uint   `json:"readLimitPerYear"`
-	ReadLimitCustomDuration string `json:"readLimitCustomDuration"` // can be used to control very fine-grained custom limit , it takes the form "per_uint_duration" , e.g "per_5_minutes"
-
-	// END READ FIELDS
-
-	// START UPDATE FIELDS
-	//UsersNotAllowedToUpdate         []string `json:"usersNotAllowedToUpdate" `
-	//RolesNotAllowedToUpdate         []string `json:"rolesNotAllowedToUpdate"`
-	//GroupsNotAllowedToUpdate        []string `json:"groupsNotAllowedToUpdate"`
-	//DomainsNotAllowedToUpdate       []string `json:"domainsNotAllowedToUpdate"`
-	//OrganizationsNotAllowedToUpdate []string `json:"organizationsNotAllowedToUpdate"`
-	//
-	//UsersAllowedToUpdate         []string `json:"usersAllowedToUpdate" `
-	//RolesAllowedToUpdate         []string `json:"rolesAllowedToUpdate"`
-	//GroupsAllowedToUpdate        []string `json:"groupsAllowedToUpdate"`
-	//DomainsAllowedToUpdate       []string `json:"domainsAllowedToUpdate"`
-	//OrganizationsAllowedToUpdate []string `json:"organizationsAllowedToUpdate"`
-
-	UpdateLimitAllTime        uint   `json:"updateLimitAllTime"` // Can be used to control how many of an item can be stored . For example the total file size you can have stored at any time is 5GB , not to be confused with UpdateLimitAtATime
-	UpdateLimitAtATime        uint   `json:"updateLimitAtATime"` // Can be used to limit how many of an item can be updated at once, or at a time, for example limiting a user to adding 5 files at once . If this value is 5, the user won't be able to update more than 5 items at once
-	UpdateLimitPerMinute      uint   `json:"updateLimitPerMinute"`
-	UpdateLimitPerHour        uint   `json:"updateLimitPerHour"`
-	UpdateLimitPerDay         uint   `json:"updateLimitPerDay"`
-	UpdateLimitPerWeek        uint   `json:"updateLimitPerWeek"`
-	UpdateLimitPerFortnight   uint   `json:"updateLimitPerFortnight"` //to limit items that can be updated every two weeks
-	UpdateLimitPerMonth       uint   `json:"updateLimitPerMonth"`     // Limit for every 30 days from FirstUpdateTime  //todo, does it make sense to use FirstUpdateTime or LastUpdateTime
-	UpdateLimitPerQuarter     uint   `json:"updateLimitPerQuarter"`   // 3 months, 90 days
-	UpdateLimitPerYear        uint   `json:"updateLimitPerYear"`
-	UpdateLimitCustomDuration string `json:"updateLimitCustomDuration"` // can be used to control very fine-grained custom limit , it takes the form "per_uint_duration" , e.g "per_5_minutes"
-
-	// END UPDATE FIELDS
-
-	// START DELETE FIELDS
-	//UsersNotAllowedToDelete         []string `json:"usersNotAllowedToDelete" `
-	//RolesNotAllowedToDelete         []string `json:"rolesNotAllowedToDelete"`
-	//GroupsNotAllowedToDelete        []string `json:"groupsNotAllowedToDelete"`
-	//DomainsNotAllowedToDelete       []string `json:"domainsNotAllowedToDelete"`
-	//OrganizationsNotAllowedToDelete []string `json:"organizationsNotAllowedToDelete"`
-	//
-	//UsersAllowedToDelete         []string `json:"usersAllowedToDelete" `
-	//RolesAllowedToDelete         []string `json:"rolesAllowedToDelete"`
-	//GroupsAllowedToDelete        []string `json:"groupsAllowedToDelete"`
-	//DomainsAllowedToDelete       []string `json:"domainsAllowedToDelete"`
-	//OrganizationsAllowedToDelete []string `json:"organizationsAllowedToDelete"`
-
-	DeleteLimitAllTime        uint   `json:"deleteLimitAllTime"` // Can be used to control how many of an item can be stored . For example the total file size you can have stored at any time is 5GB , not to be confused with DeleteLimitAtATime
-	DeleteLimitAtATime        uint   `json:"deleteLimitAtATime"` // Can be used to limit how many of an item can be deleted at once, or at a time, for example limiting a user to adding 5 files at once . If this value is 5, the user won't be able to delete more than 5 items at once
-	DeleteLimitPerMinute      uint   `json:"deleteLimitPerMinute"`
-	DeleteLimitPerHour        uint   `json:"deleteLimitPerHour"`
-	DeleteLimitPerDay         uint   `json:"deleteLimitPerDay"`
-	DeleteLimitPerWeek        uint   `json:"deleteLimitPerWeek"`
-	DeleteLimitPerFortnight   uint   `json:"deleteLimitPerFortnight"` //to limit items that can be deleted every two weeks
-	DeleteLimitPerMonth       uint   `json:"deleteLimitPerMonth"`     // Limit for every 30 days from FirstDeleteTime  //todo, does it make sense to use FirstDeleteTime or LastDeleteTime
-	DeleteLimitPerQuarter     uint   `json:"deleteLimitPerQuarter"`   // 3 months, 90 days
-	DeleteLimitPerYear        uint   `json:"deleteLimitPerYear"`
-	DeleteLimitCustomDuration string `json:"deleteLimitCustomDuration"` // can be used to control very fine-grained custom limit , it takes the form "per_uint_duration" , e.g "per_5_minutes"
-
-	// END DELETE FIELDS
-
-	// START EXECUTE FIELDS
-	//UsersNotAllowedToExecute         []string `json:"usersNotAllowedToExecute" `
-	//RolesNotAllowedToExecute         []string `json:"rolesNotAllowedToExecute"`
-	//GroupsNotAllowedToExecute        []string `json:"groupsNotAllowedToExecute"`
-	//DomainsNotAllowedToExecute       []string `json:"domainsNotAllowedToExecute"`
-	//OrganizationsNotAllowedToExecute []string `json:"organizationsNotAllowedToExecute"`
-	//
-	//UsersAllowedToExecute         []string `json:"usersAllowedToExecute" `
-	//RolesAllowedToExecute         []string `json:"rolesAllowedToExecute"`
-	//GroupsAllowedToExecute        []string `json:"groupsAllowedToExecute"`
-	//DomainsAllowedToExecute       []string `json:"domainsAllowedToExecute"`
-	//OrganizationsAllowedToExecute []string `json:"organizationsAllowedToExecute"`
-
-	ExecuteLimitAllTime        uint   `json:"executeLimitAllTime"` // Can be used to control how many of an item can be stored . For example the total file size you can have stored at any time is 5GB , not to be confused with ExecuteLimitAtATime
-	ExecuteLimitAtATime        uint   `json:"executeLimitAtATime"` // Can be used to limit how many of an item can be executed at once, or at a time, for example limiting a user to adding 5 files at once . If this value is 5, the user won't be able to execute more than 5 items at once
-	ExecuteLimitPerMinute      uint   `json:"executeLimitPerMinute"`
-	ExecuteLimitPerHour        uint   `json:"executeLimitPerHour"`
-	ExecuteLimitPerDay         uint   `json:"executeLimitPerDay"`
-	ExecuteLimitPerWeek        uint   `json:"executeLimitPerWeek"`
-	ExecuteLimitPerFortnight   uint   `json:"executeLimitPerFortnight"` //to limit items that can be executed every two weeks
-	ExecuteLimitPerMonth       uint   `json:"executeLimitPerMonth"`     // Limit for every 30 days from FirstExecuteTime  //todo, does it make sense to use FirstExecuteTime or LastExecuteTime
-	ExecuteLimitPerQuarter     uint   `json:"executeLimitPerQuarter"`   // 3 months, 90 days
-	ExecuteLimitPerYear        uint   `json:"executeLimitPerYear"`
-	ExecuteLimitCustomDuration string `json:"executeLimitCustomDuration"` // can be used to control very fine-grained custom limit , it takes the form "per_uint_duration" , e.g "per_5_minutes"
-
-	// END EXECUTE FIELDS
-
+type ActionUsage struct {
+	FirstTime                    time.Time `json:"firstTime"`
+	LastTime                     time.Time `json:"lastTime"`
+	LastQuantity                 uint      `json:"lastQuantity"`
+	AllTime                      uint      `json:"allTime"`
+	WithinTheLastMinute          uint      `json:"withinTheLastMinute"`
+	WithinTheLastHour            uint      `json:"withinTheLastHour"`
+	WithinTheLastDay             uint      `json:"withinTheLastDay"`
+	WithinTheLastWeek            uint      `json:"withinTheLastWeek"`
+	WithinTheLastFortnight       uint      `json:"withinTheLastFortnight"`
+	WithinTheLastMonth           uint      `json:"withinTheLastMonth"`
+	WithinTheLastQuarter         uint      `json:"withinTheLastQuarter"`
+	WithinTheLastYear            uint      `json:"withinTheLastYear"`
+	WithinTheLastCustomDurations []string  `json:"withinTheLastCustomDurations"`
 }
 
 type PermissionUsage struct {
-	// START CREATE FIELDS
-	FirstCreateTime                         time.Time `json:"firstCreateTime"`
-	LastCreateTime                          time.Time `json:"lastCreateTime"`
-	LastCreateQuantity                      uint      `json:"lastCreateQuantity"`
-	TotalCreatedWithinTheLastMinute         uint      `json:"totalCreatedWithinTheLastMinute"`
-	TotalCreatedWithinTheLastHour           uint      `json:"totalCreatedWithinTheLastHour"`
-	TotalCreatedWithinTheLastDay            uint      `json:"totalCreatedWithinTheLastDay"`
-	TotalCreatedWithinTheLastWeek           uint      `json:"totalCreatedWithinTheLastWeek"`
-	TotalCreatedWithinTheLastFortnight      uint      `json:"totalCreatedWithinTheLastFortnight"`
-	TotalCreatedWithinTheLastMonth          uint      `json:"totalCreatedWithinTheLastMonth"`
-	TotalCreatedWithinTheLastQuarter        uint      `json:"totalCreatedWithinTheLastQuarter"`
-	TotalCreatedWithinTheLastYear           uint      `json:"totalCreatedWithinTheLastYear"`
-	TotalCreatedWithinTheLastCustomDuration string    // can be used to record usage that happened within a custom time frame it takes the form "last_uint_duration" e.g "last_10_minutes"
-	//END CREATE FIELDS
-
-	//START READ FIELDS
-	FirstReadTime                        time.Time `json:"firstReadTime"`
-	LastReadTime                         time.Time `json:"lastReadTime"`
-	LastReadQuantity                     uint      `json:"lastReadQuantity"`
-	TotalReadWithinTheLastMinute         uint      `json:"totalReadWithinTheLastMinute"`
-	TotalReadWithinTheLastHour           uint      `json:"totalReadWithinTheLastHour"`
-	TotalReadWithinTheLastDay            uint      `json:"totalReadWithinTheLastDay"`
-	TotalReadWithinTheLastWeek           uint      `json:"totalReadWithinTheLastWeek"`
-	TotalReadWithinTheLastFortnight      uint      `json:"totalReadWithinTheLastFortnight"`
-	TotalReadWithinTheLastMonth          uint      `json:"totalReadWithinTheLastMonth"`
-	TotalReadWithinTheLastQuarter        uint      `json:"totalReadWithinTheLastQuarter"`
-	TotalReadWithinTheLastYear           uint      `json:"totalReadWithinTheLastYear"`
-	TotalReadWithinTheLastCustomDuration string    // can be used to record usage that happened within a custom time frame it takes the form "last_uint_duration" e.g "last_10_minutes"
-	//END READ FIELDS
-
-	// START UPDATE FIELDS
-	FirstUpdateTime                         time.Time `json:"firstUpdateTime"`
-	LastUpdateTime                          time.Time `json:"lastUpdateTime"`
-	LastUpdateQuantity                      uint      `json:"lastUpdateQuantity"`
-	TotalUpdatedWithinTheLastMinute         uint      `json:"totalUpdatedWithinTheLastMinute"`
-	TotalUpdatedWithinTheLastHour           uint      `json:"totalUpdatedWithinTheLastHour"`
-	TotalUpdatedWithinTheLastDay            uint      `json:"totalUpdatedWithinTheLastDay"`
-	TotalUpdatedWithinTheLastWeek           uint      `json:"totalUpdatedWithinTheLastWeek"`
-	TotalUpdatedWithinTheLastFortnight      uint      `json:"totalUpdatedWithinTheLastFortnight"`
-	TotalUpdatedWithinTheLastMonth          uint      `json:"totalUpdatedWithinTheLastMonth"`
-	TotalUpdatedWithinTheLastQuarter        uint      `json:"totalUpdatedWithinTheLastQuarter"`
-	TotalUpdatedWithinTheLastYear           uint      `json:"totalUpdatedWithinTheLastYear"`
-	TotalUpdatedWithinTheLastCustomDuration string    // can be used to record usage that happened within a custom time frame it takes the form "last_uint_duration" e.g "last_10_minutes"
-	//END UPDATE FIELDS
-
-	//START DELETE FIELDS
-	FirstDeleteTime                         time.Time `json:"firstDeleteTime"`
-	LastDeleteTime                          time.Time `json:"lastDeleteTime"`
-	LastDeleteQuantity                      uint      `json:"lastDeleteQuantity"`
-	TotalDeletedWithinTheLastMinute         uint      `json:"totalDeletedWithinTheLastMinute"`
-	TotalDeletedWithinTheLastHour           uint      `json:"totalDeletedWithinTheLastHour"`
-	TotalDeletedWithinTheLastDay            uint      `json:"totalDeletedWithinTheLastDay"`
-	TotalDeletedWithinTheLastWeek           uint      `json:"totalDeletedWithinTheLastWeek"`
-	TotalDeletedWithinTheLastFortnight      uint      `json:"totalDeletedWithinTheLastFortnight"`
-	TotalDeletedWithinTheLastMonth          uint      `json:"totalDeletedWithinTheLastMonth"`
-	TotalDeletedWithinTheLastQuarter        uint      `json:"totalDeletedWithinTheLastQuarter"`
-	TotalDeletedWithinTheLastYear           uint      `json:"totalDeletedWithinTheLastYear"`
-	TotalDeletedWithinTheLastCustomDuration string    // can be used to record usage that happened within a custom time frame it takes the form "last_uint_duration" e.g "last_10_minutes"
-	//END DELETE FIELDS
-
-	//START EXECUTE FIELDS
-	FirstExecuteTime                         time.Time `json:"firstExecuteTime"`
-	LastExecuteTime                          time.Time `json:"lastExecuteTime"`
-	LastExecuteQuantity                      uint      `json:"lastExecuteQuantity"`
-	TotalExecutedWithinTheLastMinute         uint      `json:"totalExecutedWithinTheLastMinute"`
-	TotalExecutedWithinTheLastHour           uint      `json:"totalExecutedWithinTheLastHour"`
-	TotalExecutedWithinTheLastDay            uint      `json:"totalExecutedWithinTheLastDay"`
-	TotalExecutedWithinTheLastWeek           uint      `json:"totalExecutedWithinTheLastWeek"`
-	TotalExecutedWithinTheLastFortnight      uint      `json:"totalExecutedWithinTheLastFortnight"`
-	TotalExecutedWithinTheLastMonth          uint      `json:"totalExecutedWithinTheLastMonth"`
-	TotalExecutedWithinTheLastQuarter        uint      `json:"totalExecutedWithinTheLastQuarter"`
-	TotalExecutedWithinTheLastYear           uint      `json:"totalExecutedWithinTheLastYear"`
-	TotalExecutedWithinTheLastCustomDuration string    // can be used to record usage that happened within a custom time frame it takes the form "last_uint_duration" e.g "last_10_minutes"
-	//END EXECUTE FIELDS
-
+	CreateActionUsages  ActionUsage
+	ReadActionUsages    ActionUsage
+	UpdateActionUsages  ActionUsage
+	DeleteActionUsages  ActionUsage
+	ExecuteActionUsages ActionUsage
 }
 
 // PermissionRequestData is a struct that holds data concerning the permission request . It includes things like users,roles,groups,actionType(constants.ActionTypeCreate|constants.ActionTypeRead....) etc. necessary to help get permission status
@@ -242,148 +71,301 @@ type PermissionRequestData struct {
 	GroupEntityPermissions  Permission
 	DomainEntityPermissions Permission
 	OrgEntityPermissions    Permission //Organization EntityPermissions
-	PermissionOrder         string     // the flow in which the permission should take e.g org->domain->group->role->user //default order is org->
+	EntityPermissionOrder   string     // the flow in which the permission should take e.g org->domain->group->role->user //default order is org->
 }
 
 // PermissionWithUsageRequestData to hold permission data and also check permission against usage and limits, so if actionQuantity + usage exceeds limit, deny access, but if its less or equal to grant access, hope you get the gist
 type PermissionWithUsageRequestData struct {
 	PermissionRequestData
 	ActionQuantity    uint
-	UserEntityUsage   uint
-	RoleEntityUsage   uint
-	GroupEntityUsage  uint
-	DomainEntityUsage uint
-	OrgEntityUsage    uint
+	UserEntityUsage   PermissionUsage
+	RoleEntityUsage   PermissionUsage
+	GroupEntityUsage  PermissionUsage
+	DomainEntityUsage PermissionUsage
+	OrgEntityUsage    PermissionUsage
 }
 
 func IsActionPermitted(permissionRequestData PermissionRequestData) bool {
 	actionType := permissionRequestData.ActionType
-	permissionOrder := strings.TrimSpace(permissionRequestData.PermissionOrder)
+	permissionOrder := getEntityPermissionOrder(permissionRequestData.EntityPermissionOrder)
 	var permissions Permission
-	var emptyPermission Permission
-	finalPermittedValue := false
 
 	// only allow CRUDE(Create, Read, Update, Delete,Execute) action types
 	if isActionTypeValid(actionType) == false {
+		fmt.Println("Invalid action type")
 		return false
 	}
-	// let's split the order and loop through it to get each entity action permission,
-	// if permission is granted in one entity / order level, go to the next , if all is granted and the loop is at the last point and the last one is granted, grant permission else, deny permission
-	//if permissionOrder is empty use default
-	if permissionOrder == "" || len(permissionOrder) == 0 {
-		permissionOrder = constants.DefaultPermissionOrder
+
+	// if at this point permissionOrder is empty , it means invalid entities were used
+	if len(permissionOrder) < 1 {
+		fmt.Println("Entity permission order is invalid")
 	}
-	// ensure the order contains the separator first , before attempting to split
-	if len(permissionOrder) >= constants.MinimumPermissionOrderLength && strings.Contains(permissionOrder, constants.OrderSeparator) {
-		splitOrder := strings.Split(permissionOrder, constants.OrderSeparator)
-		if len(splitOrder) > 0 {
-			//loop through the split order and check permission for each entity as arranged in the order
-			for i := 0; i < len(splitOrder); i++ {
-				currentEntity := splitOrder[i]
-				switch currentEntity {
-				case constants.EntityOrg:
-					permissions = permissionRequestData.OrgEntityPermissions
-					break
-				case constants.EntityDomain:
-					permissions = permissionRequestData.DomainEntityPermissions
-					break
-				case constants.EntityGroup:
-					permissions = permissionRequestData.GroupEntityPermissions
-					break
-				case constants.EntityRole:
-					permissions = permissionRequestData.RoleEntityPermissions
-					break
-				case constants.EntityUser:
-					permissions = permissionRequestData.UserEntityPermissions
-					break
-				default:
-					permissions = Permission{}
-					break
-				}
 
-				// check if permissions is empty, if its empty continue
-				if permissions == emptyPermission {
-					continue
-				}
+	if len(permissionOrder) > 0 {
+		//loop through the split order and check permission for each entity as arranged in the order
+		for i := 0; i < len(permissionOrder); i++ {
+			currentEntity := permissionOrder[i]
 
-				isCurrentEntityPermitted := IsEntityActionPermitted(actionType, permissions)
-				if isCurrentEntityPermitted == false {
-					return false
-				}
-				// if current entity is permitted, and we are not on the last entity in the order, continue
-				if (isCurrentEntityPermitted == true) && (i != len(splitOrder)-1) {
-					// its important we set final permitted to true here, because if this entity action type in the order is filled and permitted , but all other proceeding entity Permission struct are empty, it would give a wrong result
-					//So we need to save current permission value as true , in case other permission data are empty
-					// NOTE that empty is not same as false, if the actionType we are checking for proceeding permission structs is not empty and marked as false, the condition above would return false
-					finalPermittedValue = true
-					continue
-				}
-				// if current entity is permitted, and it's the last entity in the order, return true
-				if (isCurrentEntityPermitted == true) && (i == len(splitOrder)-1) {
-					return true
-				}
+			permissions = getEntityPermission(currentEntity, permissionRequestData)
+
+			isCurrentEntityActionPermitted := IsEntityActionPermitted(actionType, permissions)
+			if isCurrentEntityActionPermitted == false {
+
+				return false
 			}
+
+			// if all checks passed up till this point , that means permission is granted for this entity , so continue to the next entity,
+			// but if the entity we just ran check for is the last entity, then it means permission is granted , else continue to next entity
+			if i == len(permissionOrder)-1 {
+				// this is the last entity in the order
+				// this means all checks in the last entity went well if we got to this point
+				return true
+
+			} else {
+				// this means current entity checks went well, but we are not in the last entity in the order yet, so let's move to the next entity to check if limits are not exceeded
+				continue
+			}
+
 		}
 	}
 
-	fmt.Println("Hala 1")
-	return finalPermittedValue
+	return false
 }
 
 //todo [LATER] optimise this function , its looping through the permissions twice
 
-// IsActionPermittedWithUsage is a function to check if action is permitted, then it checks the usage following the PermissionRequestData.PermissionOrder
-// It loops through each entity in the order and checks permission against request usage + actionQuantity for each limit type
-// WHat does this mean let's say our request data is like this :
-/**
- data:= PermissionWithUsageRequestData  {
-	PermissionRequestData : PermissionRequestData {
-			ActionType : "create"
-			UserEntityPermissions: userPermission
-			RoleEntityPermissions :  rolePermission
-			GroupEntityPermissions:  Permission
-			DomainEntityPermissions Permission
-			OrgEntityPermissions    Permission //Organization Permissions
-			PermissionOrder   string
-		}
-	ActionQuantity uint
-	Usage          PermissionUsage
-}
-
-*/
+// IsActionPermittedWithUsage is a function to check if action is permitted, then it checks the usage following the PermissionRequestData.EntityPermissionOrder
+// It loops through each entity in the order and checks permission against request usage + actionQuantity for each ActionLimit
 func IsActionPermittedWithUsage(requestData PermissionWithUsageRequestData) bool {
-	// first check if action is permitted based on the actionType
-	isActionPermitted := IsActionPermitted(requestData.PermissionRequestData)
-	if isActionPermitted == false {
-		return false
-	}
+	actionQuantity := requestData.ActionQuantity
+	var actionLimits ActionLimit
+	var actionUsage ActionUsage
+	var entityPermissions Permission
+	var entityUsage PermissionUsage
 
-	// Loop through all the usage according to the order
-	if isActionPermitted == true {
+	permissionOrder := getEntityPermissionOrder(requestData.EntityPermissionOrder)
 
+	// Loop through all the usage according to the entity order
+	// compare each action quantity + usage , if the addition is more than its appropriate limit deny access
+	// for example, if I am doing a creating 5 files batch , it loops through all the entity's and the limit, it first checks the "batch" limit, if the limit for "batch" is less or equal to 5 continue,
+	// following the order, within that same order, it checks all other limits against the usage, if the usage + action quantity exceeds the corresponding limit, deny access
+
+	if len(permissionOrder) > 0 {
+		for i := 0; i < len(permissionOrder); i++ {
+			currentEntity := permissionOrder[i]
+			// if any of the entity is invalid at any point decline permission
+			if isEntityValid(currentEntity) == false {
+				fmt.Printf("Invalid entity : %s", currentEntity)
+				return false
+			}
+
+			// Get current entity permission
+			entityPermissions = getEntityPermission(currentEntity, requestData.PermissionRequestData)
+			// first we check current action is permitted for this entity, before moving to its limits
+			isCurrentEntityActionPermitted := IsEntityActionPermitted(requestData.ActionType, entityPermissions)
+			if isCurrentEntityActionPermitted == false {
+
+				fmt.Printf("%s %s", currentEntity, requestData.ActionType)
+				fmt.Print(entityPermissions)
+				return false
+			}
+			//todo test scenario and implications of what happens if one of the entity permissions is not set at all, meaning its "empty"
+			// I think if it is, it should not be put in the order at all, so by default , if its empty all the limit checks would pass, except the batchLimit, which has to be at least 1
+			// SO this would force the users to either set the fields for the entoty, or remove it completely from the order
+
+			// Get entity usage
+			entityUsage = getEntityPermissionUsage(currentEntity, requestData)
+			if requestData.ActionType == constants.ActionTypeCreate {
+				actionLimits = entityPermissions.CreateActionLimits
+				actionUsage = entityUsage.CreateActionUsages
+			}
+			if requestData.ActionType == constants.ActionTypeRead {
+				actionLimits = entityPermissions.ReadActionLimits
+				actionUsage = entityUsage.ReadActionUsages
+			}
+			if requestData.ActionType == constants.ActionTypeUpdate {
+				actionLimits = entityPermissions.UpdateActionLimits
+				actionUsage = entityUsage.UpdateActionUsages
+			}
+
+			if requestData.ActionType == constants.ActionTypeDelete {
+				actionLimits = entityPermissions.DeleteActionLimits
+				actionUsage = entityUsage.DeleteActionUsages
+			}
+
+			if requestData.ActionType == constants.ActionTypeExecute {
+				actionLimits = entityPermissions.ExecuteActionLimits
+				actionUsage = entityUsage.ExecuteActionUsages
+			}
+			// Now let's get values of the various fields we need for the current action we are checking permission for
+
+			// Let's start with limits
+			allTimeLimit := actionLimits.AllTimeLimit
+			batchLimit := actionLimits.BatchLimit
+			perMinuteLimit := actionLimits.PerMinuteLimit
+			perHourLimit := actionLimits.PerHourLimit
+			perDayLimit := actionLimits.PerDayLimit
+			perWeekLimit := actionLimits.PerWeekLimit
+			perFortnightLimit := actionLimits.PerFortnightLimit
+			perMonthLimit := actionLimits.PerMonthLimit
+			perQuarterLimit := actionLimits.PerQuarterLimit
+			perYearLimit := actionLimits.PerYearLimit
+			//customDurationsLimit:=actionLimits.CustomDurationsLimit
+
+			// Let's get usage values
+
+			allTimeUsage := actionUsage.AllTime
+			usageWithinMinute := actionUsage.WithinTheLastMinute
+			usageWithinHour := actionUsage.WithinTheLastHour
+			usageWithinDay := actionUsage.WithinTheLastDay
+			usageWithinWeek := actionUsage.WithinTheLastWeek
+			usageWithinFortnight := actionUsage.WithinTheLastFortnight
+			usageWithinMonth := actionUsage.WithinTheLastMonth
+			usageWithinQuarter := actionUsage.WithinTheLastQuarter
+			usageWithinYear := actionUsage.WithinTheLastYear
+			//usageWithinCustomDurations:=actionUsage.WithinTheLastCustomDurations
+
+			// special error message for batch value, because it can't be 0, it needs to be at least 1, this is to protect the user of permitta, forcing them to set a batch limit
+			if batchLimit < 1 {
+				fmt.Printf("%sActionLimits.BatchLimit value for %s entity has to be at least 1  \n", firstLetterToUppercase(requestData.ActionType), currentEntity)
+				return false
+			}
+			// if any of the limit values is less than 0, deny permission, because that's not normal, I have taken precaution to prevent this, but just in case there is a scenario, I didn't consider that made invalid value slip through
+			if allTimeLimit < 0 ||
+				perMinuteLimit < 0 ||
+				perHourLimit < 0 ||
+				perDayLimit < 0 ||
+				perWeekLimit < 0 ||
+				perFortnightLimit < 0 ||
+				perMonthLimit < 0 ||
+				perQuarterLimit < 0 ||
+				perYearLimit < 0 {
+				fmt.Printf("Invalid limit value \n Check all your %s entity permission limit values to ensure they are all valid, none of them should be less than 0 \n", currentEntity)
+				return false
+			}
+
+			if allTimeUsage < 0 ||
+				usageWithinMinute < 0 ||
+				usageWithinHour < 0 ||
+				usageWithinDay < 0 ||
+				usageWithinWeek < 0 ||
+				usageWithinFortnight < 0 ||
+				usageWithinMonth < 0 ||
+				usageWithinQuarter < 0 ||
+				usageWithinYear < 0 {
+				fmt.Printf("Invalid usage value \n Check all your %s entity permission usage values to ensure they are all valid, none of them should be less than 0 \n", currentEntity)
+				return false
+			}
+
+			// TODO Document that batch limit is a compulsory field to fill, its slightly different from every other limit  where 0  denotes unlimited . If batch limit for any action is left at the default struct field of 0 the permission request would FAIL, the whole point is to protect anyone who uses permitta from a spamming, where
+			// TODO CONTD - where users try to perform too many actions at once
+
+			// if limitBatchB
+			// First check ^LimitBatch is not exceeded , if its exceeded deny permission, there is no need to check the next order
+			// Also if fore some reason batchLimit is -1 , this is not a valid value, so deny permission
+			// batchLimit is not like other limits where 0 denotes unlimited, this forces any permitta user to set a strict batch limit value
+			if actionQuantity > batchLimit {
+				fmt.Println("doooo")
+				fmt.Printf("%s %s", currentEntity, requestData.ActionType)
+				fmt.Print(entityPermissions)
+				return false
+			}
+
+			// Next let's check all time limit for current entity, and deny access if exceeded
+			// to do that , we ensure action quantity + all time usage doesn't exceed all time limit , and the all-time limit value isn't unlimited =0
+			if (actionQuantity+allTimeUsage > allTimeLimit) && allTimeLimit != constants.Unlimited {
+				fmt.Println("pooo")
+				fmt.Printf("%s %s", currentEntity, requestData.ActionType)
+				fmt.Print(entityPermissions)
+				return false
+			}
+
+			// next check per minute limit
+			if (actionQuantity+usageWithinMinute > perMinuteLimit) && perMinuteLimit != constants.Unlimited {
+				return false
+			}
+
+			// next check per hour limit
+			if (actionQuantity+usageWithinHour > perHourLimit) && perHourLimit != constants.Unlimited {
+				return false
+			}
+
+			// next check per day limit
+			if (actionQuantity+usageWithinDay > perDayLimit) && perDayLimit != constants.Unlimited {
+				return false
+			}
+
+			// next check per week limit
+			if (actionQuantity+usageWithinWeek > perWeekLimit) && perWeekLimit != constants.Unlimited {
+				return false
+			}
+
+			// next check per fortnight limit
+			if (actionQuantity+usageWithinFortnight > perFortnightLimit) && perFortnightLimit != constants.Unlimited {
+				return false
+			}
+
+			// next check per month limit
+			if (actionQuantity+usageWithinMonth > perMonthLimit) && perMonthLimit != constants.Unlimited {
+				return false
+			}
+
+			// next check per quarter limit
+			if (actionQuantity+usageWithinQuarter > perQuarterLimit) && perQuarterLimit != constants.Unlimited {
+				return false
+			}
+
+			// next check per year limit
+			if (actionQuantity+usageWithinYear > perYearLimit) && perYearLimit != constants.Unlimited {
+				return false
+			}
+
+			// todo come and add custom durations limit check
+
+			// if all checks passed up till this point , that means permission is granted for this entity , so continue to the next entity,
+			// but if the entity we just ran check for is the last entity, then it means permission is granted , else continue to next entity
+			if i == len(permissionOrder)-1 {
+				// this is the last entity in the order
+				// this means all checks in the last entity went well if we got to this point
+				return true
+
+			} else {
+				// this means current entity checks went well, but we are not in the last entity in the order yet, so let's move to the next entity to check if limits are not exceeded
+				continue
+			}
+		}
 	}
 
 	return false
 }
 
 func IsEntityActionPermitted(actionType string, entityPermissions Permission) bool {
-	// ensure the action type is correct
+	// ensure the action type is valid
 	if isActionTypeValid(actionType) == false {
 		return false
 	}
-	// the name of the struct field of the action type, whether its Create,Read....
-	structFieldName := firstLetterToUppercase(actionType)
-	//case as bool
-	structFieldValue, _ := getValueFromStructFieldByName(entityPermissions, structFieldName)
-	if structFieldValue == nil {
-		fmt.Printf("Something went wrong getting the struct field value for %s \n\n", structFieldName)
-		return false
-	} else {
-		//Attempt to cast value as bool , since the CRUDE fields are bool
-		isPermitted := structFieldValue.(bool)
-		return isPermitted
+
+	if actionType == constants.ActionTypeCreate {
+		return entityPermissions.Create
 	}
 
+	if actionType == constants.ActionTypeRead {
+		return entityPermissions.Read
+	}
+
+	if actionType == constants.ActionTypeUpdate {
+		return entityPermissions.Update
+	}
+
+	if actionType == constants.ActionTypeDelete {
+		return entityPermissions.Delete
+	}
+
+	if actionType == constants.ActionTypeExecute {
+		return entityPermissions.Execute
+	}
+
+	return false
 }
 
 func isActionTypeValid(actionType string) bool {
@@ -399,36 +381,114 @@ func isActionTypeValid(actionType string) bool {
 	return true
 }
 
-//func getActionFieldName(actionType string)string{
-//	// ensure the action type is correct
-//	if isActionTypeValid(actionType)==false{
-//		return ""
-//	}
-//	// the name of the struct field of the action type, whether its Create,Read....
-//
-//	structFieldName:=""
-//	switch actionType {
-//	case constants.ActionTypeCreate: structFieldName:="Create"
-//	break
-//	case constants.ActionTypeRead: structFieldName:="Read"
-//	break
-//
-//	}
-//}
-
 func firstLetterToUppercase(s string) string {
 	return strings.ToUpper(string(s[0])) + s[1:]
 
 }
 
-func getValueFromStructFieldByName(s interface{}, fieldName string) (interface{}, error) {
-	rv := reflect.ValueOf(s)
-	if rv.Kind() != reflect.Struct {
-		return nil, fmt.Errorf("input is not a struct")
+func getEntityPermissionOrder(permissionOrder string) []string {
+	var finalOrder []string
+	strings.TrimSpace(permissionOrder)
+	// if permission is granted in one entity / order level, go to the next , if all is granted and the loop is at the last point and the last one is granted, grant permission else, deny permission
+	//if permissionOrder is empty use default
+	//NOTE doc that if the put in empty order, the permission order would be the default
+	// If they also put in characters tha is less than the MinimumEntityPermissionOrderLength , the permission order would be the default
+	if permissionOrder == "" || len(permissionOrder) < constants.MinimumEntityPermissionOrderLength {
+		permissionOrder = constants.DefaultEntityPermissionOrder
 	}
-	field := rv.FieldByName(fieldName)
-	if !field.IsValid() {
-		return nil, fmt.Errorf("field '%s' not found", fieldName)
+	// for scenario where we want to check permission for just one entity and there is no separator , just a single word denoting the entity
+	if strings.Contains(permissionOrder, constants.OrderSeparator) == false {
+		if isEntityValid(permissionOrder) {
+			return []string{permissionOrder}
+		}
 	}
-	return field.Interface(), nil
+
+	// for other scenarios where the separator is included
+	if strings.Contains(permissionOrder, constants.OrderSeparator) == true {
+		splitOrder := strings.Split(permissionOrder, constants.OrderSeparator)
+		if len(splitOrder) > 0 {
+
+			// loop through the orders in the slice and if current entity is valid append it to the final order
+			for i := 0; i < len(splitOrder); i++ {
+
+				if isEntityValid(splitOrder[i]) == true {
+					finalOrder = append(finalOrder, splitOrder[i])
+				}
+			}
+
+		}
+		return finalOrder
+	}
+
+	return []string{}
 }
+
+func getEntityPermission(entityName string, permissionRequestData PermissionRequestData) Permission {
+	var permissions Permission
+	switch entityName {
+	case constants.EntityOrg:
+		permissions = permissionRequestData.OrgEntityPermissions
+		break
+	case constants.EntityDomain:
+		permissions = permissionRequestData.DomainEntityPermissions
+		break
+	case constants.EntityGroup:
+		permissions = permissionRequestData.GroupEntityPermissions
+		break
+	case constants.EntityRole:
+		permissions = permissionRequestData.RoleEntityPermissions
+		break
+	case constants.EntityUser:
+		permissions = permissionRequestData.UserEntityPermissions
+		break
+	default:
+		permissions = Permission{}
+		break
+	}
+
+	return permissions
+}
+
+func getEntityPermissionUsage(entityName string, usageRequestData PermissionWithUsageRequestData) PermissionUsage {
+	var usage PermissionUsage
+	switch entityName {
+	case constants.EntityOrg:
+		usage = usageRequestData.OrgEntityUsage
+		break
+	case constants.EntityDomain:
+		usage = usageRequestData.DomainEntityUsage
+		break
+	case constants.EntityGroup:
+		usage = usageRequestData.GroupEntityUsage
+		break
+	case constants.EntityRole:
+		usage = usageRequestData.RoleEntityUsage
+		break
+	case constants.EntityUser:
+		usage = usageRequestData.UserEntityUsage
+		break
+	default:
+		usage = PermissionUsage{}
+		break
+	}
+
+	return usage
+}
+
+func isEntityValid(entityName string) bool {
+	// ensure the action type is correct
+	if entityName != constants.EntityOrg &&
+		entityName != constants.EntityDomain &&
+		entityName != constants.EntityGroup &&
+		entityName != constants.EntityRole &&
+		entityName != constants.EntityUser {
+		return false
+	}
+
+	return true
+}
+
+//TODO add a way to write this permissions in shorthand , both for obscurity and quick writing of permissions
+// Then write a function to intepreter that shorthand, its basically just parsing using strings.split , you might even create your own standard of writing permissions and propose it to a body tasked with standardizing things like this
+// FOllowing the unix permission pattern for each entity, you can do , "crud-","c"{all:0,batch:1,minute:0,hour:5,day:0,week:45,fortnight:0,monthly:0,quarterly:0,yearly:0,customDurations:[per_5_minutes_4,per_3_days_50]|r:....
+// crud-|c=month:0,day:100,batch:1,minute:5,hour:20,week:500,fortnight:700,year:10000,quarter:5000,custom:[per_5_minutes_4,per_3_days_50]|r=
