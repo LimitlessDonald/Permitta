@@ -20,11 +20,11 @@ type Permission struct {
 	Delete  bool `json:"delete"`
 	Execute bool `json:"execute"`
 
-	CreateActionLimits  ActionLimit `json:"createActionLimits"`
-	ReadActionLimits    ActionLimit `json:"readActionLimits"`
-	UpdateActionLimits  ActionLimit `json:"updateActionLimits"`
-	DeleteActionLimits  ActionLimit `json:"deleteActionLimits"`
-	ExecuteActionLimits ActionLimit `json:"executeActionLimits"`
+	CreateActionLimits  ActionLimit
+	ReadActionLimits    ActionLimit
+	UpdateActionLimits  ActionLimit
+	DeleteActionLimits  ActionLimit
+	ExecuteActionLimits ActionLimit
 }
 
 type ActionLimit struct {
@@ -493,7 +493,9 @@ func isEntityValid(entityName string) bool {
 //TODO add a way to write this permissions in shorthand , both for obscurity and quick writing of permissions
 // Then write a function to intepreter that shorthand, its basically just parsing using strings.split , you might even create your own standard of writing permissions and propose it to a body tasked with standardizing things like this
 // FOllowing the unix permission pattern for each entity, you can do , "crud-","c"{all:0,batch:1,minute:0,hour:5,day:0,week:45,fortnight:0,monthly:0,quarterly:0,yearly:0,customDurations:[per_5_minutes_4,per_3_days_50]|r:....
+// crud-|c=month:0,day:100,batch:1,minute:5,hour:20,week:500,fortnight:700,year:10000,quarter:5000,custom:[per_5_minutes_4/per_3_days_50]|r=
 
+// crud-|c=month:0,day:100,batch:1,minute:5,hour:20,week:500,fortnight:700,year:10000,quarter:5000,custom:[per_5_minutes_4/per_3_days_50]|r=
 // crud-|c=month:0,day:100,batch:1,minute:5,hour:20,week:500,fortnight:700,year:10000,quarter:5000,custom:[per_5_minutes_4 & per_3_days_50]|r=
 
 func NotationToPermission(notation string) Permission {
@@ -501,7 +503,7 @@ func NotationToPermission(notation string) Permission {
 	// just in case there is space in the string, let's trim space, but there shouldn't be space
 	notation = strings.TrimSpace(notation)
 	includeThisActionLimit := false
-	var currentLimitSection string
+	var actionLimit ActionLimit
 	// first let's split the notation into its different section
 	if strings.Contains(notation, constants.NotationSectionSeparator) {
 		notationSections := strings.Split(notation, constants.NotationSectionSeparator)
@@ -522,7 +524,7 @@ func NotationToPermission(notation string) Permission {
 			return Permission{}
 		}
 
-		// if we got here it means the pattern matched, and we are good to set the permission values for the actions
+		// if we got here it means the pattern matched and we are good to set the permission values for the actions
 		for i, actionPermissionInit := range notationSections[0] {
 
 			if i == 0 {
@@ -574,7 +576,6 @@ func NotationToPermission(notation string) Permission {
 		for i := 1; i < len(notationSections); i++ {
 			//reset include action limit
 			includeThisActionLimit = false
-			currentLimitSection = ""
 			// Let's check if current section is properly formed, this isn't a perfect test for a properly formed action limit section , but it would do for now
 			// todo improve this
 
@@ -587,8 +588,7 @@ func NotationToPermission(notation string) Permission {
 
 				if strings.HasPrefix(notationSections[i], "c=") == true && finalPermission.Create == true {
 					includeThisActionLimit = true
-					currentLimitSection = constants.ActionTypeCreate
-
+					actionLimit = finalPermission.CreateActionLimits
 				}
 
 			}
@@ -600,8 +600,7 @@ func NotationToPermission(notation string) Permission {
 				}
 				if strings.HasPrefix(notationSections[i], "r=") == true && finalPermission.Read == true {
 					includeThisActionLimit = true
-					currentLimitSection = constants.ActionTypeRead
-
+					actionLimit = finalPermission.ReadActionLimits
 				}
 			}
 
@@ -612,8 +611,7 @@ func NotationToPermission(notation string) Permission {
 				}
 				if strings.HasPrefix(notationSections[i], "u=") == true && finalPermission.Update == true {
 					includeThisActionLimit = true
-					currentLimitSection = constants.ActionTypeUpdate
-
+					actionLimit = finalPermission.UpdateActionLimits
 				}
 			}
 			if i == 4 {
@@ -623,8 +621,7 @@ func NotationToPermission(notation string) Permission {
 				}
 				if strings.HasPrefix(notationSections[i], "d=") == true && finalPermission.Delete == true {
 					includeThisActionLimit = true
-					currentLimitSection = constants.ActionTypeDelete
-
+					actionLimit = finalPermission.DeleteActionLimits
 				}
 			}
 
@@ -635,8 +632,7 @@ func NotationToPermission(notation string) Permission {
 				}
 				if strings.HasPrefix(notationSections[i], "e=") == true && finalPermission.Execute == true {
 					includeThisActionLimit = true
-					currentLimitSection = constants.ActionTypeExecute
-
+					actionLimit = finalPermission.ExecuteActionLimits
 				}
 
 			}
@@ -646,31 +642,11 @@ func NotationToPermission(notation string) Permission {
 				// first split the action key from the limit list
 				splitActionLimitSection := strings.Split(notationSections[i], "=")
 				// now let's split the limits itself , and assign the limits where they are available, and return the new updated limits
-				actionLimit, _ := getNotationActionLimits(splitActionLimitSection[1]) //todo handle error here
-
-				switch currentLimitSection {
-				case constants.ActionTypeCreate:
-					finalPermission.CreateActionLimits = actionLimit
-					break
-				case constants.ActionTypeRead:
-					finalPermission.ReadActionLimits = actionLimit
-					break
-				case constants.ActionTypeUpdate:
-					finalPermission.UpdateActionLimits = actionLimit
-					break
-				case constants.ActionTypeDelete:
-					finalPermission.DeleteActionLimits = actionLimit
-					break
-				case constants.ActionTypeExecute:
-					finalPermission.ExecuteActionLimits = actionLimit
-					break
-
-				}
-
+				actionLimit = getNotationActionLimits(splitActionLimitSection[1],actionLimit)
 			}
 
 		}
-		return finalPermission
+
 	}
 	return Permission{}
 }
@@ -678,102 +654,102 @@ func NotationToPermission(notation string) Permission {
 func isNotationActionBatchLimitSet() {
 
 }
-
 // getNotationActionLimitAndValue receives limit data like "week:5" or "batch:3"
-func getNotationActionLimitAndValue(limitData string) (string, uint, bool) {
+func getNotationActionLimitAndValue(limitData string ) (string,uint,bool){
 
-	limitData = strings.TrimSpace(limitData)
+	limitData=strings.TrimSpace(limitData)
 	// let's check if the limit data is properly formed
 	// if it doesn't contain the string that separates limitType from value, then its not valid
 	// let's use regex for this
-	//  pattern ensures that the right pattern is followed limit:uint
+	// this pattern ensures that the right pattern is followed limit:uint
 	// however, it forces batch , to be >=1 to be valid , all other limits can be 0 to denote unlimited
 	regexPattern := `^(batch:[1-9]\d*)$|(all|minute|hour|day|week|fortnight|month|quarter|year)(:\d+)$`
 	regex := regexp.MustCompile(regexPattern)
-	if regex.MatchString(limitData) == false {
-		return "", 0, false
+	if  regex.MatchString(limitData)==false{
+		return "",-1,false
 	}
 	// split the limit data since we have verified that its valid
-	splitLimitData := strings.Split(limitData, constants.NotationActionLimitAndValueSeparator)
-	limitType := splitLimitData[0]
+	splitLimitData:=strings.Split(limitData,constants.NotationActionLimitAndValueSeparator)
+	limitType :=splitLimitData[0]
 	limitValue := splitLimitData[1]
+
 
 	// Best regex so far for the custom limit
-	//	custom:\[(?:per_\d+_?[a-z]+_\d+(?:&|$))+\]
+//	custom:\[(?:per_\d+_?[a-z]+_\d+(?:&|$))+\]
 
-	// Da accurate one !!! ANd I did it myself, AI did the one above, I was closer than AI
-	//	^(custom:\[)((per_\d+_[a-z]+_\d+\&)+|(per_\d+_[a-z]+_\d+){1})+(\])$
-	// This one adds option for the custom limit to be empty
-	//	^(custom:\[)((per_\d+_[a-z]+_\d+\&)+|(per_\d+_[a-z]+_\d+){1})+(\])$|custom:\[\]$
-	// Even improved more
-	// ^custom:\[((per_\d+_[a-z]+_\d+\&)+|(per_\d+_[a-z]+_\d+){1})+\]$|^custom:\[\]$
+// Da accurate one !!! ANd I did it myself, AI did the one above, I was closer than AI
+//	^(custom:\[)((per_\d+_[a-z]+_\d+\&)+|(per_\d+_[a-z]+_\d+){1})+(\])$
+// This one adds option for the custom limit to be empty
+//	^(custom:\[)((per_\d+_[a-z]+_\d+\&)+|(per_\d+_[a-z]+_\d+){1})+(\])$|custom:\[\]$
+// Even improved more
+// ^custom:\[((per_\d+_[a-z]+_\d+\&)+|(per_\d+_[a-z]+_\d+){1})+\]$|^custom:\[\]$
 
-	// The regexes above allow 0 value after per_ we should have per_0_minutes_10 for example, it should be at least per_1
-	//Improved AND TESTED
-	//	^custom:\[((per_[1-9]\d*_[a-z]+_\d+\&)+|(per_[1-9]\d*_[a-z]+_\d+){1})+\]$|^custom:\[\]$
+// The regexes above allow 0 value after per_ we should have per_0_minutes_10 for example, it should be at least per_1
+//Improved AND TESTED
+//	^custom:\[((per_[1-9]\d*_[a-z]+_\d+\&)+|(per_[1-9]\d*_[a-z]+_\d+){1})+\]$|^custom:\[\]$
 
-	//todo create tool where you can write regex and see the syntax clearly , like breaking new line, like in a nested if statement, or even a if statement kind of flow
+//todo create tool where you can write regex and see the syntax clearly , like breaking new line, like in a nested if statement, or even a if statement kind of flow
 
-	limitValueUintInit, limitValueErr := strconv.ParseUint(limitValue, 10, 64)
-	if limitValueErr != nil {
-		// conversion/parsing was not successful
-		return "", 0, false
-	}
-	// if we get to this point it means conversion was successful
-	limitValueUint := uint(limitValueUintInit)
+	// don't need this anymore, regex already does this work for us
+	// force the limit type to be a valid limit type
+	//if limitType!=constants.NotationActionBatchLimitKey &&
+	//	limitType!=constants.NotationActionAllTimeLimitKey &&
+	//	limitType!=constants.NotationActionMinuteLimitKey &&
+	//	limitType!=constants.NotationActionHourLimitKey &&
+	//	limitType!=constants.NotationActionDayLimitKey &&
+	//	limitType!=constants.NotationActionWeekLimitKey &&
+	//	limitType!=constants.NotationActionFortnightLimitKey &&
+	//	limitType!=constants.NotationActionMonthLimitKey &&
+	//	limitType!=constants.NotationActionQuarterLimitKey &&
+	//	limitType!=constants.NotationActionYearLimitKey &&
+	//	limitType!="custom" {
+	//	return false
+	//}
 
-	// if we got to this point , regex has validated the limitData to be correct
-	// we also successfully converted the limitValue to uint
-	return limitType, limitValueUint, true
-
-}
-
-// getNotationActionCustomLimitValue receives limit data like "custom:[per_5_minutes_10&per_2_month_90]"
-func getNotationActionCustomLimitValue(limitData string) ([]string, bool) {
-	var customLimitList []string
-	limitData = strings.TrimSpace(limitData)
-
-	regexPattern := `^custom:\[((per_[1-9]\d*_[a-z]+_\d+\&)+|(per_[1-9]\d*_[a-z]+_\d+){1})+\]$|^custom:\[\]$`
-	regex := regexp.MustCompile(regexPattern)
-	if regex.MatchString(limitData) == false {
-		return []string{}, false
-	}
-	// split the limit data since we have verified that its valid
-	splitLimitData := strings.Split(limitData, constants.NotationActionLimitAndValueSeparator)
-	//limitType :=splitLimitData[0]
-	limitValue := splitLimitData[1]
-
-	// remove the value prefix and suffix to denote a list
-	limitValue = strings.ReplaceAll(limitValue, constants.NotationCustomLimitValuePrefix, "")
-	limitValue = strings.ReplaceAll(limitValue, constants.NotationCustomLimitValueSuffix, "")
-	// check if it contains separator
-	if strings.Contains(limitValue, constants.NotationCustomLimitValueListSeparator) == false {
-		// Since its false , most likely, we have just one custom limit, so lets, just push it
-		//todo comeback when you have written validator for the main ActionLimit.CustomDurationsLimit, use the same validator here, since the syntax for the full custom and notation custom limts are the same
-		customLimitList = append(customLimitList, limitValue)
-	}
-
-	if strings.Contains(limitValue, constants.NotationCustomLimitValueListSeparator) == true {
-		// Since it's true, we potentially have at least two custom limits in the list, so let's split and iterate
-		splitCustomLimits := strings.Split(limitValue, constants.NotationCustomLimitValueListSeparator)
-		if len(splitCustomLimits) > 0 {
-			for i := 0; i < len(splitCustomLimits); i++ {
-				currentCustomLimit := splitCustomLimits[i]
-				//todo validate value here, regex has already validated the structure, but we need to validate
-				customLimitList = append(customLimitList, currentCustomLimit)
-			}
+	//if limitType==constants.NotationActionBatchLimitKey ||
+	//	limitType==constants.NotationActionAllTimeLimitKey ||
+	//	limitType==constants.NotationActionMinuteLimitKey ||
+	//	limitType==constants.NotationActionHourLimitKey ||
+	//	limitType==constants.NotationActionDayLimitKey ||
+	//	limitType==constants.NotationActionWeekLimitKey ||
+	//	limitType==constants.NotationActionFortnightLimitKey ||
+	//	limitType==constants.NotationActionMonthLimitKey ||
+	//	limitType==constants.NotationActionQuarterLimitKey ||
+	//	limitType==constants.NotationActionYearLimitKey
+		limitValueUintInit, limitValueErr:=strconv.ParseUint(limitValue,10,64)
+		if limitValueErr!=nil{
+			// conversion/parsing was not successful
+			return "",-1,false
 		}
-		//todo comeback when you have written validator for the main ActionLimit.CustomDurationsLimit, use the same validator here, since the syntax for the full custom and notation custom limts are the same
-		customLimitList = append(customLimitList, limitValue)
-	}
+		// if we get to this point it means conversion was successful
+		limitValueUint:=uint(limitValueUintInit)
+		// if limit is batch, ensure that the value is never less than 1, because batch limit can't be unlimited
+		// Not neccessary anymore since regex forces the batch value to be >=1
+		// It also force other limits to be 0 or more
+		//if limitType==constants.NotationActionBatchLimitKey && limitValueUint>=1{
+		//	return true
+		//}
+		//
+		//// for all others they have to be greater or equals to 0, 0 is unlimited
+		//if limitType!=constants.NotationActionBatchLimitKey && limitValueUint>=0{
+		//	return true
+		//}
 
-	return customLimitList, true
+		// if we got to this point , regex has validated the limitData to be correct
+		// we also successfully converted the limitValue to uint
+		return limitType,limitValueUint,true
+
+
+
+
+
+
 
 }
 
-func getCustomLimitsNotationValues(customLimitValue string) []string {
+func getCustomLimitsNotationValues(customLimitValue string )[]string{
 	// if it doesn't start with "[" or does not end with "]" its invalid
-	if strings.HasPrefix(customLimitValue, constants.NotationCustomLimitValuePrefix) == false || strings.HasSuffix(customLimitValue, constants.NotationCustomLimitValueSuffix) == false {
+	if strings.HasPrefix(customLimitValue,constants.NotationCustomLimitValuePrefix) ==false || strings.HasSuffix(customLimitValue,constants.NotationCustomLimitValueSuffix) ==false{
 		return []string{}
 	}
 	// if we got here its formed properly so far.
@@ -783,36 +759,33 @@ func getCustomLimitsNotationValues(customLimitValue string) []string {
 	return []string{}
 }
 
-func getNotationActionLimits(actionLimitsString string) (ActionLimit, error) {
-	var currentActionLimit ActionLimit
-
+func getNotationActionLimits(actionLimitsString string, currentActionLimit ActionLimit) (ActionLimit, error) {
 	//trim spaces
-	actionLimitsString = strings.TrimSpace(actionLimitsString)
+	actionLimitsString=strings.TrimSpace(actionLimitsString)
 	// for scenario where there is just for one limit and there is no separator , just potentially one limit, which has to by design be required to be the batch limit
 	if strings.Contains(actionLimitsString, constants.NotationActionLimitsSeparator) == false {
 		// now we check the string if it at least has the format limit:value e.g batch:3,
 		// so it has to at least contain ":", and then when split , should be at least a len of 2
 		// we also need to make sure that we don't have more than one ":", this is to ensure that users always separate the limits with comma
-		if strings.Contains(actionLimitsString, constants.NotationActionLimitAndValueSeparator) == true && strings.Count(actionLimitsString, constants.NotationActionLimitAndValueSeparator) == 1 {
-			splitSingleLimit := strings.Split(actionLimitsString, constants.NotationActionLimitAndValueSeparator)
+		if strings.Contains(actionLimitsString,constants.NotationActionLimitAndValueSeparator) ==true && strings.Count(actionLimitsString,constants.NotationActionLimitAndValueSeparator)==1 {
+			splitSingleLimit:=strings.Split(actionLimitsString,constants.NotationActionLimitAndValueSeparator)
 			// the len has to be at exactly 2, else it's not valid
-			if len(splitSingleLimit) == 2 {
+			if len(splitSingleLimit)==2{
 				// Now that we are here, if we have gotten to this point it means there is only one valid limit for this action Limit,
 				// But "batch" limit is a required limit, if this limit isn't batch limit, there is no need continuing
-				if strings.ToLower(splitSingleLimit[0]) == constants.NotationActionBatchLimitKey {
+				if strings.ToLower(splitSingleLimit[0])==constants.NotationActionBatchLimitKey{
 					// check the limit, it has to be greater than 0
-					batchLimit, batchLimitErr := strconv.ParseUint(splitSingleLimit[1], 10, 64)
-					if batchLimitErr == nil && batchLimit > 0 {
-						currentActionLimit.BatchLimit = uint(batchLimit)
+					batchLimit,batchLimitErr:=strconv.ParseUint(splitSingleLimit[1],10,64)
+					if batchLimitErr==nil && batchLimit>0 {
+						currentActionLimit.BatchLimit= uint(batchLimit)
 						//return back the action limit , with the batch limit added
-						return currentActionLimit, nil
+						return currentActionLimit,nil
 
 					}
 				}
 			}
 		}
-		fmt.Println("malformed notation action limits, check that its properly formed, and has the required limits")
-		return currentActionLimit, fmt.Errorf("malformed notation action limits, check that its properly formed, and has the required limits")
+		return currentActionLimit,fmt.Errorf("malformed notation action limits, check that its propely formed, and has the required limits")
 	}
 
 	// for other scenarios where the separator is included, possibly indicating multiple limits
@@ -823,76 +796,17 @@ func getNotationActionLimits(actionLimitsString string) (ActionLimit, error) {
 			// loop through the limits in the slice
 			// if any of the limits or its value is invalid, return error
 			for i := 0; i < len(splitLimits); i++ {
-				currentLimitData := splitLimits[i]
+				currentLimitData:=splitLimits[i]
 				// check if current limit data contains the right seprator is
-				// if its not custom limit
-				if strings.Contains(currentLimitData, constants.NotationActionCustomLimitKey) == true {
-					customLimitSlice, isCustomLimitValid := getNotationActionCustomLimitValue(currentLimitData)
-					if isCustomLimitValid {
-						currentActionLimit.CustomDurationsLimit = customLimitSlice
-					} else {
-						fmt.Println("malformed notation action limits, check that the custom limits are properly formed")
-					}
-				} else {
-					// for other limits
-					currentLimitType, currentLimitValue, isCurrentLimitDataValid := getNotationActionLimitAndValue(currentLimitData)
-
-					if isCurrentLimitDataValid == true { // set batch limit
-						if currentLimitType == constants.NotationActionBatchLimitKey {
-							currentActionLimit.BatchLimit = currentLimitValue
-						}
-
-						// set all time limit
-						if currentLimitType == constants.NotationActionAllTimeLimitKey {
-							currentActionLimit.AllTimeLimit = currentLimitValue
-						}
-						// set all minute limit
-						if currentLimitType == constants.NotationActionMinuteLimitKey {
-							currentActionLimit.PerMinuteLimit = currentLimitValue
-						}
-						// set all hour limit
-						if currentLimitType == constants.NotationActionHourLimitKey {
-							currentActionLimit.PerHourLimit = currentLimitValue
-						}
-						// set all day limit
-						if currentLimitType == constants.NotationActionDayLimitKey {
-							currentActionLimit.PerDayLimit = currentLimitValue
-						}
-						// set all week limit
-						if currentLimitType == constants.NotationActionWeekLimitKey {
-							currentActionLimit.PerWeekLimit = currentLimitValue
-						}
-
-						// set all fortnight limit
-						if currentLimitType == constants.NotationActionFortnightLimitKey {
-							currentActionLimit.PerFortnightLimit = currentLimitValue
-						}
-
-						// set all month limit
-						if currentLimitType == constants.NotationActionMonthLimitKey {
-							currentActionLimit.PerMonthLimit = currentLimitValue
-						}
-
-						// set all quarter limit
-						if currentLimitType == constants.NotationActionQuarterLimitKey {
-							currentActionLimit.PerQuarterLimit = currentLimitValue
-						}
-
-						// set all year limit
-						if currentLimitType == constants.NotationActionYearLimitKey {
-							currentActionLimit.PerYearLimit = currentLimitValue
-						}
-					} else {
-						fmt.Println("malformed notation action limits, check that its properly formed, and has the required limits")
-					}
-
-				}
+				if isNotationActionLimitAndValueValid()
 			}
 
 		}
-		return currentActionLimit, nil
+		return finalOrder
 	}
 
-	return currentActionLimit, fmt.Errorf("unknown error") //todo come back and improve this error message
+	return finalPermission,
 
 }
+
+
