@@ -494,8 +494,11 @@ func isEntityValid(entityName string) bool {
 // Then write a function to intepreter that shorthand, its basically just parsing using strings.split , you might even create your own standard of writing permissions and propose it to a body tasked with standardizing things like this
 // FOllowing the unix permission pattern for each entity, you can do , "crud-","c"{all:0,batch:1,minute:0,hour:5,day:0,week:45,fortnight:0,monthly:0,quarterly:0,yearly:0,customDurations:[per_5_minutes_4,per_3_days_50]|r:....
 
-// crud-|c=month:0,day:100,batch:1,minute:5,hour:20,week:500,fortnight:700,year:10000,quarter:5000,custom:[per_5_minutes_4 & per_3_days_50]|r=
-
+// NotationToPermission converts a notation string to a permission "object"/struct. Its just a useful "shorthand" way to write permissions without using the struct directly
+//
+// Below is an example of what a notation looks like . Read in the repo documentation for details
+//
+//	crud-|c=month:0,day:100,batch:1,minute:5,hour:20,week:500,fortnight:700,year:10000,quarter:5000,custom:[per_5_minutes_4 & per_3_days_50]|r=..
 func NotationToPermission(notation string) Permission {
 	var finalPermission Permission
 	// just in case there is space in the string, let's trim space, but there shouldn't be space
