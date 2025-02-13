@@ -10,7 +10,6 @@ import (
 )
 
 // TODO create dart client of this , when its recieving permissions in json
-// todo permission check order allowed or not by CRUDE - > not allowed by user->not allowed by role -> not allowed by group -> allowed by user-> allowed by role -> allowed by group -> then  time based limits starting with Batch
 
 // Permission is a very important struct that can be used as an embedded struct to control permissions for just about anything or used as a type, of a struct field
 type Permission struct {
@@ -28,8 +27,8 @@ type Permission struct {
 }
 
 type ActionLimit struct {
-	BatchLimit           uint     `json:"batchLimit"`   // Can be used to limit how many of an item can be deleted at once, or at a time, for example limiting a user to adding 5 files at once . If this value is 5, the user won't be able to delete more than 5 items at once
-	AllTimeLimit         uint     `json:"allTimeLimit"` // Can be used to control how many of an item can be stored . For example the total file size you can have stored at any time is 5GB , not to be confused with DeleteLimitBatch
+	BatchLimit           uint     `json:"batchLimit"`   // Can be used to limit how many of an item can be deleted at once, or at a time, for example limiting a user to adding 5 files at once . If this value is 5, the user won't be able to delete more than 5 items at once. Batch can't be 0 which denotes unlimited, it has to be 1 or above, the default value if not set won't be 0, but 1
+	AllTimeLimit         uint     `json:"allTimeLimit"` // Can be used to control how many of an item can be stored . For example the total file size you can have stored at any time is 5GB
 	PerMinuteLimit       uint     `json:"perMinuteLimit"`
 	PerHourLimit         uint     `json:"perHourLimit"`
 	PerDayLimit          uint     `json:"perDayLimit"`
@@ -39,6 +38,22 @@ type ActionLimit struct {
 	PerQuarterLimit      uint     `json:"perQuarterLimit"`   // 3 months, 90 days
 	PerYearLimit         uint     `json:"perYearLimit"`
 	CustomDurationsLimit []string `json:"customDurationsLimit"`
+}
+
+// getBatchLimit is useful for setting the default batch limit to 1 if its 0, because batch limit can't be unlimited
+func (actionLimit *ActionLimit) getBatchLimit() uint {
+	if actionLimit.BatchLimit < 1 {
+		return 1
+	}
+	return actionLimit.BatchLimit
+}
+
+// setDefaultLimits is useful for setting the default batch limit to 1 if its 0, because batch limit can't be unlimited
+func (actionLimit *ActionLimit) setDefaultLimits() {
+	if actionLimit.BatchLimit < 1 {
+		actionLimit.BatchLimit = 1
+	}
+
 }
 
 type ActionUsage struct {
@@ -173,7 +188,7 @@ func IsActionPermittedWithUsage(requestData PermissionWithUsageRequestData) bool
 			}
 			//todo test scenario and implications of what happens if one of the entity permissions is not set at all, meaning its "empty"
 			// I think if it is, it should not be put in the order at all, so by default , if its empty all the limit checks would pass, except the batchLimit, which has to be at least 1
-			// SO this would force the users to either set the fields for the entoty, or remove it completely from the order
+			// SO this would force the users to either set the fields for the entity, or remove it completely from the order
 
 			// Get entity usage
 			entityUsage = getEntityPermissionUsage(currentEntity, requestData)
@@ -203,7 +218,7 @@ func IsActionPermittedWithUsage(requestData PermissionWithUsageRequestData) bool
 
 			// Let's start with limits
 			allTimeLimit := actionLimits.AllTimeLimit
-			batchLimit := actionLimits.BatchLimit
+			batchLimit := actionLimits.getBatchLimit()
 			perMinuteLimit := actionLimits.PerMinuteLimit
 			perHourLimit := actionLimits.PerHourLimit
 			perDayLimit := actionLimits.PerDayLimit
@@ -232,6 +247,7 @@ func IsActionPermittedWithUsage(requestData PermissionWithUsageRequestData) bool
 				fmt.Printf("%sActionLimits.BatchLimit value for %s entity has to be at least 1  \n", firstLetterToUppercase(requestData.ActionType), currentEntity)
 				return false
 			}
+
 			// if any of the limit values is less than 0, deny permission, because that's not normal, I have taken precaution to prevent this, but just in case there is a scenario, I didn't consider that made invalid value slip through
 			if allTimeLimit < 0 ||
 				perMinuteLimit < 0 ||
@@ -259,26 +275,23 @@ func IsActionPermittedWithUsage(requestData PermissionWithUsageRequestData) bool
 				return false
 			}
 
-			// TODO Document that batch limit is a compulsory field to fill, its slightly different from every other limit  where 0  denotes unlimited . If batch limit for any action is left at the default struct field of 0 the permission request would FAIL, the whole point is to protect anyone who uses permitta from a spamming, where
+			// TODO Document that batch limit default value is automatically assumed, or enforced as 1, not unlimited, to prevent abuse
 			// TODO CONTD - where users try to perform too many actions at once
 
-			// if limitBatchB
-			// First check ^LimitBatch is not exceeded , if its exceeded deny permission, there is no need to check the next order
+			// if BatchLimit
+			// First check ^BatchLimit is not exceeded , if its exceeded deny permission, there is no need to check the next order
 			// Also if fore some reason batchLimit is -1 , this is not a valid value, so deny permission
 			// batchLimit is not like other limits where 0 denotes unlimited, this forces any permitta user to set a strict batch limit value
 			if actionQuantity > batchLimit {
-				fmt.Println("doooo")
-				fmt.Printf("%s %s", currentEntity, requestData.ActionType)
-				fmt.Print(entityPermissions)
+
+				fmt.Printf("Batch Limit exceeded for entity:%s and action:%s \n", currentEntity, requestData.ActionType)
 				return false
 			}
 
 			// Next let's check all time limit for current entity, and deny access if exceeded
 			// to do that , we ensure action quantity + all time usage doesn't exceed all time limit , and the all-time limit value isn't unlimited =0
 			if (actionQuantity+allTimeUsage > allTimeLimit) && allTimeLimit != constants.Unlimited {
-				fmt.Println("pooo")
-				fmt.Printf("%s %s", currentEntity, requestData.ActionType)
-				fmt.Print(entityPermissions)
+
 				return false
 			}
 
@@ -390,7 +403,8 @@ func firstLetterToUppercase(s string) string {
 
 func getEntityPermissionOrder(permissionOrder string) []string {
 	var finalOrder []string
-	strings.TrimSpace(permissionOrder)
+	permissionOrder = strings.ReplaceAll(permissionOrder, " ", "")
+
 	// if permission is granted in one entity / order level, go to the next , if all is granted and the loop is at the last point and the last one is granted, grant permission else, deny permission
 	//if permissionOrder is empty use default
 	//NOTE doc that if the put in empty order, the permission order would be the default
@@ -490,6 +504,66 @@ func isEntityValid(entityName string) bool {
 	return true
 }
 
+func replaceLastOccurrence(s, old, new string) string {
+	index := strings.LastIndex(s, old)
+	if index == -1 {
+		return s
+	}
+	return s[:index] + new + s[index+len(old):]
+}
+
+// sanitizeNotation is a function that "cleans up " notations and remove unnecessary sections , it doesn't validate, it only cleans up
+func sanitizeNotation(notation string) string {
+	// Clean up space first
+	notation = strings.ReplaceAll(notation, " ", "")
+	// clean up new line and tab
+	notation = strings.ReplaceAll(notation, "\n", "")
+	notation = strings.ReplaceAll(notation, "\t", "")
+
+	// if there is any empty section remove that section , to be more specific, if there is any invalid limit section remove it.
+	// I know I said we won't do validation here, but we kind of already are
+	if strings.Contains(notation, constants.NotationSectionSeparator) == true {
+		notationSections := strings.Split(notation, constants.NotationSectionSeparator)
+		newNotation := ""
+		for i := 0; i < len(notationSections); i++ {
+			currentSectionString := notationSections[i]
+			//rebuild the notation , only add section if it starts with a valid section prefix
+			if strings.HasPrefix(currentSectionString, "c") || //for first section that could be something like "cr-de"
+				strings.HasPrefix(currentSectionString, "-") || // for something like "-r---"
+				strings.HasPrefix(currentSectionString, "c=") || // for limit section
+				strings.HasPrefix(currentSectionString, "r=") || // for limit section
+				strings.HasPrefix(currentSectionString, "u=") || // for limit section
+				strings.HasPrefix(currentSectionString, "d=") || // for limit section
+				strings.HasPrefix(currentSectionString, "e=") {
+
+				// for the section to be added, it also needs to meet certain criterias
+				// the length of the string has to be at least 5 characters long , e.g "crud-" and "c=all:5" both are 5 or more characters
+				// if it's not last index add separator
+				if len([]rune(currentSectionString)) >= 5 {
+					if i != len(notationSections)-1 {
+						newNotation = newNotation + currentSectionString + constants.NotationSectionSeparator
+					} else {
+						newNotation = newNotation + currentSectionString
+					}
+				}
+			}
+
+		}
+
+		notation = newNotation
+	}
+
+	// let's check if we have one section separator, if we do, this means most like we have something like cr-de| , it's ok and preferable to have it just like cr-de without the separator, so let's clean that up
+	// it won't be high-tech, if there is one separator, just remove it, especially when it's at the end
+	// it needs to be the scenario where it's at the end , because we could have one separator and have something like this cr-de|c=batch:2 in this case, we don't want to remove the section separator
+	// But we could also have cr-de|c=batch:2| , so this means, we don't want to check if there is just one separator, we just want to remove the separator if its the last string
+	if strings.HasSuffix(notation, constants.NotationSectionSeparator) == true {
+		notation = replaceLastOccurrence(notation, constants.NotationSectionSeparator, "")
+	}
+
+	return notation
+}
+
 //TODO add a way to write this permissions in shorthand , both for obscurity and quick writing of permissions
 // Then write a function to intepreter that shorthand, its basically just parsing using strings.split , you might even create your own standard of writing permissions and propose it to a body tasked with standardizing things like this
 // FOllowing the unix permission pattern for each entity, you can do , "crud-","c"{all:0,batch:1,minute:0,hour:5,day:0,week:45,fortnight:0,monthly:0,quarterly:0,yearly:0,customDurations:[per_5_minutes_4,per_3_days_50]|r:....
@@ -502,78 +576,98 @@ func isEntityValid(entityName string) bool {
 func NotationToPermission(notation string) Permission {
 	var finalPermission Permission
 	// just in case there is space in the string, let's trim space, but there shouldn't be space
-	notation = strings.TrimSpace(notation)
+	notation = sanitizeNotation(notation)
 	includeThisActionLimit := false
 	var currentLimitSection string
+	var notationSections []string
+	var actionPermissionSection string //for the first section like cr-de
 	// first let's split the notation into its different section
 	if strings.Contains(notation, constants.NotationSectionSeparator) {
-		notationSections := strings.Split(notation, constants.NotationSectionSeparator)
-		// There should always be 6 sections , if there is less than or more than  6, return empty permissions
-		if len(notationSections) != 6 {
+		fmt.Println("bloombla")
+		notationSections = strings.Split(notation, constants.NotationSectionSeparator)
+		actionPermissionSection = notationSections[0]
+		// There should always be at most 6 sections , and at least one section e.g. cr-de| this implies create, read, delete, execute is allowed and all its limits are unlimited, except batch limits which is set to 1 by default
+		if len(notationSections) < 1 || len(notationSections) > 6 {
 			fmt.Println("Malformed permission notation")
 			return Permission{}
 		}
+	} else {
+		// the notation doesn't contain the separator, so we assume it's just the actionPermissionSection without the limits section
+		actionPermissionSection = notation
+	}
+	fmt.Println("DAAA NOTEATION")
+	fmt.Println(notation)
 
-		// if we got here, it means the notation is properly formed so far
-		// let's check the first section if its properly formed, if it is we can proceed,
-		// it should always be 5 characters long , because it should be like "crude" , which stands for CREATE, READ, UPDATE, DELETE, EXECUTE . , if we don't want to grant permission to any of these actions any of the letters in "crude" can be replaced with a minus sign "-"
-		// But the letter have to ALWAYS follow that order, or be replaced by "-"
-		// so let's use regex
-		firstSectionPattern := regexp.MustCompile(`^([c-][r-][u-][d-][e-])$`)
-		if firstSectionPattern.MatchString(notationSections[0]) == false {
-			fmt.Println("Malformed permission notation")
-			return Permission{}
+	// if we got here, it means the notation is properly formed so far
+	// let's check the first section if its properly formed, if it is we can proceed,
+	// it should always be 5 characters long , because it should be like "crude" , which stands for CREATE, READ, UPDATE, DELETE, EXECUTE . , if we don't want to grant permission to any of these actions any of the letters in "crude" can be replaced with a minus sign "-"
+	// But the letter have to ALWAYS follow that order, or be replaced by "-"
+	// so let's use regex
+	firstSectionPattern := regexp.MustCompile(`^([c-][r-][u-][d-][e-])$`)
+	if firstSectionPattern.MatchString(actionPermissionSection) == false {
+		fmt.Println("Malformed permission notation")
+		return Permission{}
+	}
+
+	// if we got here it means the pattern matched, and we are good to set the permission values for the actions
+	for i, actionPermissionInit := range actionPermissionSection {
+
+		if i == 0 {
+			if string(actionPermissionInit) == "c" {
+				finalPermission.Create = true
+				// set default limits
+
+			}
 		}
 
-		// if we got here it means the pattern matched, and we are good to set the permission values for the actions
-		for i, actionPermissionInit := range notationSections[0] {
+		if i == 1 {
+			if string(actionPermissionInit) == "r" {
+				finalPermission.Read = true
 
-			if i == 0 {
-				if string(actionPermissionInit) == "c" {
-					finalPermission.Create = true
-				}
 			}
-
-			if i == 1 {
-				if string(actionPermissionInit) == "r" {
-					finalPermission.Read = true
-				}
-			}
-
-			if i == 2 {
-				if string(actionPermissionInit) == "u" {
-					finalPermission.Update = true
-				}
-			}
-
-			if i == 3 {
-				if string(actionPermissionInit) == "d" {
-					finalPermission.Delete = true
-				}
-			}
-
-			if i == 4 {
-				if string(actionPermissionInit) == "e" {
-					finalPermission.Execute = true
-				}
-			}
-
 		}
 
-		//NOTE document this :
+		if i == 2 {
+			if string(actionPermissionInit) == "u" {
+				finalPermission.Update = true
 
-		// Let's move to the remaining sections, we can just loop through them , since they have similar syntax
-		// the remaining sections is for limits , create limits for example would be defined like :
-		// c=month:0,day:100,batch:1,minute:5,hour:20,week:500,fortnight:700,year:10000,quarter:5000,custom:[per_5_minutes_4,per_3_days_50]
-		// for other action types "c=" can just be replaced with "r=" or "u=" or "d=" or "e="
-		// Just like the action permission section similarly the proceeding sections should also follow an order
-		// e.g c-ude|c=....|r=...|u=...|d=...|e=...
-		// Its required that in each action limit section, at least the batch limit should be set
-		// The individual limits within each action limit section can be arranged in any order
-		// If any limit is excluded, its assumed that the value is unlimited , batch limit can never be unlimited, this is why it's a required limit/value for all action limit sections, where corresponding action permission is granted
-		// Let's start the loop , we would be starting the loop from index 1, since index 0 is the actionType permissions which we have already handled
-		// Action Limit sections can be left empty if only there corresponding Action permission is not granted .
-		// for example if you have crud-|c=.... execute limit can be excluded like this crud-|c=...|r=...|u=...|d=...|- Note the minus sign , in the execute limit section
+			}
+		}
+
+		if i == 3 {
+			if string(actionPermissionInit) == "d" {
+				finalPermission.Delete = true
+
+			}
+		}
+
+		if i == 4 {
+			if string(actionPermissionInit) == "e" {
+				finalPermission.Execute = true
+			}
+		}
+
+	}
+
+	//NOTE document this :
+
+	// Let's move to the remaining sections, we can just loop through them , since they have similar syntax
+	// NOTE The remaining sections don't have to be set if I want to let all the limits be unlimited and the batch limit to be 1
+	// the remaining sections is for limits , create limits for example would be defined like :
+	// c=month:0,day:100,batch:1,minute:5,hour:20,week:500,fortnight:700,year:10000,quarter:5000,custom:[per_5_minutes_4,per_3_days_50]
+	// for other action types "c=" can just be replaced with "r=" or "u=" or "d=" or "e="
+	// Just like the action permission section similarly the proceeding sections should also follow an order
+	// e.g c-ude|c=....|r=...|u=...|d=...|e=...
+	// Its required that in each action limit section, at least the batch limit should be set
+	// The individual limits within each action limit section can be arranged in any order
+	// If any limit is excluded, its assumed that the value is unlimited , batch limit can never be unlimited, this is why if its not set, it automatically enforced as 1, where corresponding action permission is granted
+	// Let's start the loop , we would be starting the loop from index 1, since index 0 is the actionType permissions which we have already handled
+	// Action Limit sections can be left empty even if the said action is granted permission, this would imply that batch limit is the default of 1 and all other limits are unlimited
+	// for example if you have crud-| implies create, read, update and delete permission is granted, and all its limits are unlimited and all its batch limit is set to 1
+	// only run this loop if limits are set this means the notationSections is greater than 1
+	fmt.Printf("COUNTEDDDD %d \n", len(notationSections))
+	if len(notationSections) > 1 {
+		fmt.Println("GOTTA HERE")
 		for i := 1; i < len(notationSections); i++ {
 			//reset include action limit
 			includeThisActionLimit = false
@@ -581,66 +675,33 @@ func NotationToPermission(notation string) Permission {
 			// Let's check if current section is properly formed, this isn't a perfect test for a properly formed action limit section , but it would do for now
 			// todo improve this
 
-			// if we are in index 1, ensure it starts with c=, else output error , do same for the other action limits in the correct sequence/order
-			if i == 1 {
-				if strings.HasPrefix(notationSections[i], "c=") == false && finalPermission.Create == true {
-					fmt.Println("Malformed notation: Create action limit section has to start with 'c=', since Create permission is granted ")
-					return Permission{}
-				}
-
-				if strings.HasPrefix(notationSections[i], "c=") == true && finalPermission.Create == true {
-					includeThisActionLimit = true
-					currentLimitSection = constants.ActionTypeCreate
-
-				}
+			if strings.HasPrefix(notationSections[i], "c=") == true && finalPermission.Create == true {
+				includeThisActionLimit = true
+				currentLimitSection = constants.ActionTypeCreate
 
 			}
-			if i == 2 {
 
-				if strings.HasPrefix(notationSections[i], "r=") == false && finalPermission.Read == true {
-					fmt.Println("Malformed notation: Read action limit section has to start with 'r=', since Read permission is granted  ")
-					return Permission{}
-				}
-				if strings.HasPrefix(notationSections[i], "r=") == true && finalPermission.Read == true {
-					includeThisActionLimit = true
-					currentLimitSection = constants.ActionTypeRead
+			if strings.HasPrefix(notationSections[i], "r=") == true && finalPermission.Read == true {
+				includeThisActionLimit = true
+				currentLimitSection = constants.ActionTypeRead
 
-				}
 			}
 
-			if i == 3 {
-				if strings.HasPrefix(notationSections[i], "u=") == false && finalPermission.Update == true {
-					fmt.Println("Malformed notation: Update action limit section has to start with 'u=', since Update permission is granted  ")
-					return Permission{}
-				}
-				if strings.HasPrefix(notationSections[i], "u=") == true && finalPermission.Update == true {
-					includeThisActionLimit = true
-					currentLimitSection = constants.ActionTypeUpdate
+			if strings.HasPrefix(notationSections[i], "u=") == true && finalPermission.Update == true {
+				includeThisActionLimit = true
+				currentLimitSection = constants.ActionTypeUpdate
 
-				}
-			}
-			if i == 4 {
-				if strings.HasPrefix(notationSections[i], "d=") == false && finalPermission.Delete == true {
-					fmt.Println("Malformed notation: Delete action limit section has to start with 'd=', since Delete permission is granted  ")
-					return Permission{}
-				}
-				if strings.HasPrefix(notationSections[i], "d=") == true && finalPermission.Delete == true {
-					includeThisActionLimit = true
-					currentLimitSection = constants.ActionTypeDelete
-
-				}
 			}
 
-			if i == 5 {
-				if strings.HasPrefix(notationSections[i], "e=") == false && finalPermission.Execute == true {
-					fmt.Println("Malformed notation: Execute action limit section has to start with 'e=', since Execute permission is granted ")
-					return Permission{}
-				}
-				if strings.HasPrefix(notationSections[i], "e=") == true && finalPermission.Execute == true {
-					includeThisActionLimit = true
-					currentLimitSection = constants.ActionTypeExecute
+			if strings.HasPrefix(notationSections[i], "d=") == true && finalPermission.Delete == true {
+				includeThisActionLimit = true
+				currentLimitSection = constants.ActionTypeDelete
 
-				}
+			}
+
+			if strings.HasPrefix(notationSections[i], "e=") == true && finalPermission.Execute == true {
+				includeThisActionLimit = true
+				currentLimitSection = constants.ActionTypeExecute
 
 			}
 
@@ -649,17 +710,26 @@ func NotationToPermission(notation string) Permission {
 				// first split the action key from the limit list
 				splitActionLimitSection := strings.Split(notationSections[i], "=")
 				// now let's split the limits itself , and assign the limits where they are available, and return the new updated limits
-				actionLimit, _ := getNotationActionLimits(splitActionLimitSection[1]) //todo handle error here
-
+				actionLimit, actionLimitErr := getNotationActionLimits(splitActionLimitSection[1]) //todo handle error here
+				// if for any reason there is an error getting action limit, its very important to set original action permission to false, else there would be a loop hole, where, users can be granted unlimited access, so set final permission to empty
+				if actionLimitErr != nil {
+					finalPermission = Permission{}
+					return finalPermission
+				}
 				switch currentLimitSection {
+				// for scenarios where
 				case constants.ActionTypeCreate:
+
 					finalPermission.CreateActionLimits = actionLimit
+
 					break
 				case constants.ActionTypeRead:
 					finalPermission.ReadActionLimits = actionLimit
+
 					break
 				case constants.ActionTypeUpdate:
 					finalPermission.UpdateActionLimits = actionLimit
+
 					break
 				case constants.ActionTypeDelete:
 					finalPermission.DeleteActionLimits = actionLimit
@@ -673,19 +743,40 @@ func NotationToPermission(notation string) Permission {
 			}
 
 		}
-		return finalPermission
 	}
-	return Permission{}
-}
 
-func isNotationActionBatchLimitSet() {
+	// set default limits for granted permissions in case they were not set
+	//todo improve this
+	if finalPermission.Create == true {
+		finalPermission.CreateActionLimits.setDefaultLimits()
+	}
+
+	if finalPermission.Read == true {
+		finalPermission.ReadActionLimits.setDefaultLimits()
+
+	}
+
+	if finalPermission.Update == true {
+		finalPermission.UpdateActionLimits.setDefaultLimits()
+
+	}
+
+	if finalPermission.Delete == true {
+
+		finalPermission.DeleteActionLimits.setDefaultLimits()
+	}
+
+	if finalPermission.Execute == true {
+		finalPermission.ExecuteActionLimits.setDefaultLimits()
+	}
+	return finalPermission
 
 }
 
 // getNotationActionLimitAndValue receives limit data like "week:5" or "batch:3"
 func getNotationActionLimitAndValue(limitData string) (string, uint, bool) {
 
-	limitData = strings.TrimSpace(limitData)
+	limitData = strings.ReplaceAll(limitData, " ", "")
 	// let's check if the limit data is properly formed
 	// if it doesn't contain the string that separates limitType from value, then its not valid
 	// let's use regex for this
@@ -734,7 +825,6 @@ func getNotationActionLimitAndValue(limitData string) (string, uint, bool) {
 // getNotationActionCustomLimitValue receives limit data like "custom:[per_5_minutes_10&per_2_month_90]"
 func getNotationActionCustomLimitValue(limitData string) ([]string, bool) {
 	var customLimitList []string
-	limitData = strings.TrimSpace(limitData)
 
 	regexPattern := `^custom:\[((per_[1-9]\d*_[a-z]+_\d+\&)+|(per_[1-9]\d*_[a-z]+_\d+){1})+\]$|^custom:\[\]$`
 	regex := regexp.MustCompile(regexPattern)
@@ -790,32 +880,26 @@ func getNotationActionLimits(actionLimitsString string) (ActionLimit, error) {
 	var currentActionLimit ActionLimit
 
 	//trim spaces
-	actionLimitsString = strings.TrimSpace(actionLimitsString)
+	actionLimitsString = strings.ReplaceAll(actionLimitsString, " ", "")
 	// for scenario where there is just for one limit and there is no separator , just potentially one limit, which has to by design be required to be the batch limit
 	if strings.Contains(actionLimitsString, constants.NotationActionLimitsSeparator) == false {
 		// now we check the string if it at least has the format limit:value e.g batch:3,
 		// so it has to at least contain ":", and then when split , should be at least a len of 2
 		// we also need to make sure that we don't have more than one ":", this is to ensure that users always separate the limits with comma
 		if strings.Contains(actionLimitsString, constants.NotationActionLimitAndValueSeparator) == true && strings.Count(actionLimitsString, constants.NotationActionLimitAndValueSeparator) == 1 {
+			fmt.Println(actionLimitsString)
 			splitSingleLimit := strings.Split(actionLimitsString, constants.NotationActionLimitAndValueSeparator)
 			// the len has to be at exactly 2, else it's not valid
 			if len(splitSingleLimit) == 2 {
 				// Now that we are here, if we have gotten to this point it means there is only one valid limit for this action Limit,
-				// But "batch" limit is a required limit, if this limit isn't batch limit, there is no need continuing
-				if strings.ToLower(splitSingleLimit[0]) == constants.NotationActionBatchLimitKey {
-					// check the limit, it has to be greater than 0
-					batchLimit, batchLimitErr := strconv.ParseUint(splitSingleLimit[1], 10, 64)
-					if batchLimitErr == nil && batchLimit > 0 {
-						currentActionLimit.BatchLimit = uint(batchLimit)
-						//return back the action limit , with the batch limit added
-						return currentActionLimit, nil
-
-					}
-				}
+				// add a  comma to the end of the actionLimitsString , to ensure that the split below defined in splitLimits works, since this currently appears to be a likely valid limit
+				actionLimitsString = actionLimitsString + constants.NotationActionLimitsSeparator
 			}
+		} else {
+			fmt.Println("malformed notation action limits, check that its properly formed, and has the required limits")
+			return currentActionLimit, fmt.Errorf("malformed notation action limits, check that its properly formed, and has the required limits")
 		}
-		fmt.Println("malformed notation action limits, check that its properly formed, and has the required limits")
-		return currentActionLimit, fmt.Errorf("malformed notation action limits, check that its properly formed, and has the required limits")
+
 	}
 
 	// for other scenarios where the separator is included, possibly indicating multiple limits
@@ -827,68 +911,74 @@ func getNotationActionLimits(actionLimitsString string) (ActionLimit, error) {
 			// if any of the limits or its value is invalid, return error
 			for i := 0; i < len(splitLimits); i++ {
 				currentLimitData := splitLimits[i]
-				// check if current limit data contains the right seprator is
-				// if its not custom limit
-				if strings.Contains(currentLimitData, constants.NotationActionCustomLimitKey) == true {
-					customLimitSlice, isCustomLimitValid := getNotationActionCustomLimitValue(currentLimitData)
-					if isCustomLimitValid {
-						currentActionLimit.CustomDurationsLimit = customLimitSlice
-					} else {
-						fmt.Println("malformed notation action limits, check that the custom limits are properly formed")
-					}
-				} else {
-					// for other limits
-					currentLimitType, currentLimitValue, isCurrentLimitDataValid := getNotationActionLimitAndValue(currentLimitData)
-
-					if isCurrentLimitDataValid == true { // set batch limit
-						if currentLimitType == constants.NotationActionBatchLimitKey {
-							currentActionLimit.BatchLimit = currentLimitValue
-						}
-
-						// set all time limit
-						if currentLimitType == constants.NotationActionAllTimeLimitKey {
-							currentActionLimit.AllTimeLimit = currentLimitValue
-						}
-						// set all minute limit
-						if currentLimitType == constants.NotationActionMinuteLimitKey {
-							currentActionLimit.PerMinuteLimit = currentLimitValue
-						}
-						// set all hour limit
-						if currentLimitType == constants.NotationActionHourLimitKey {
-							currentActionLimit.PerHourLimit = currentLimitValue
-						}
-						// set all day limit
-						if currentLimitType == constants.NotationActionDayLimitKey {
-							currentActionLimit.PerDayLimit = currentLimitValue
-						}
-						// set all week limit
-						if currentLimitType == constants.NotationActionWeekLimitKey {
-							currentActionLimit.PerWeekLimit = currentLimitValue
-						}
-
-						// set all fortnight limit
-						if currentLimitType == constants.NotationActionFortnightLimitKey {
-							currentActionLimit.PerFortnightLimit = currentLimitValue
-						}
-
-						// set all month limit
-						if currentLimitType == constants.NotationActionMonthLimitKey {
-							currentActionLimit.PerMonthLimit = currentLimitValue
-						}
-
-						// set all quarter limit
-						if currentLimitType == constants.NotationActionQuarterLimitKey {
-							currentActionLimit.PerQuarterLimit = currentLimitValue
-						}
-
-						// set all year limit
-						if currentLimitType == constants.NotationActionYearLimitKey {
-							currentActionLimit.PerYearLimit = currentLimitValue
+				//ensure the length of the limit data is not less than 5 chars , e.g all:5 is valid because its 5 characters
+				if len([]rune(currentLimitData)) >= 5 {
+					// check if current limit data contains the right seprator is
+					// if its not custom limit
+					if strings.Contains(currentLimitData, constants.NotationActionCustomLimitKey) == true {
+						customLimitSlice, isCustomLimitValid := getNotationActionCustomLimitValue(currentLimitData)
+						if isCustomLimitValid {
+							currentActionLimit.CustomDurationsLimit = customLimitSlice
+						} else {
+							fmt.Println("malformed notation action limits, check that the custom limits are properly formed")
 						}
 					} else {
-						fmt.Println("malformed notation action limits, check that its properly formed, and has the required limits")
-					}
+						// for other limits
+						currentLimitType, currentLimitValue, isCurrentLimitDataValid := getNotationActionLimitAndValue(currentLimitData)
 
+						if isCurrentLimitDataValid == true { // set batch limit
+							if currentLimitType == constants.NotationActionBatchLimitKey {
+								currentActionLimit.BatchLimit = currentLimitValue
+								currentActionLimit.BatchLimit = currentActionLimit.getBatchLimit() //forces the default limit to be 1 , if this value is 0, because batch limit can't be 0
+							}
+
+							// set all time limit
+							if currentLimitType == constants.NotationActionAllTimeLimitKey {
+								currentActionLimit.AllTimeLimit = currentLimitValue
+							}
+							// set all minute limit
+							if currentLimitType == constants.NotationActionMinuteLimitKey {
+								currentActionLimit.PerMinuteLimit = currentLimitValue
+							}
+							// set all hour limit
+							if currentLimitType == constants.NotationActionHourLimitKey {
+								currentActionLimit.PerHourLimit = currentLimitValue
+							}
+							// set all day limit
+							if currentLimitType == constants.NotationActionDayLimitKey {
+								currentActionLimit.PerDayLimit = currentLimitValue
+							}
+							// set all week limit
+							if currentLimitType == constants.NotationActionWeekLimitKey {
+								currentActionLimit.PerWeekLimit = currentLimitValue
+							}
+
+							// set all fortnight limit
+							if currentLimitType == constants.NotationActionFortnightLimitKey {
+								currentActionLimit.PerFortnightLimit = currentLimitValue
+							}
+
+							// set all month limit
+							if currentLimitType == constants.NotationActionMonthLimitKey {
+								currentActionLimit.PerMonthLimit = currentLimitValue
+							}
+
+							// set all quarter limit
+							if currentLimitType == constants.NotationActionQuarterLimitKey {
+								currentActionLimit.PerQuarterLimit = currentLimitValue
+							}
+
+							// set all year limit
+							if currentLimitType == constants.NotationActionYearLimitKey {
+								currentActionLimit.PerYearLimit = currentLimitValue
+							}
+						} else {
+							// unknown limit, so return error
+							fmt.Printf("malformed notation action limits, '%s' \n", currentLimitData)
+							return currentActionLimit, fmt.Errorf("malformed notation action limits, '%s' \n", currentLimitData)
+						}
+
+					}
 				}
 			}
 

@@ -114,7 +114,7 @@ func TestIsActionPermittedWithUsage(t *testing.T) {
 }
 
 func TestNotationToPermission(t *testing.T) {
-	notationString := "cr-d-|c=all:10,batch:1,minute:3,hour:5,day:70,week:400,fortnight:600,month:1000,year:9000|r=all:101,batch:11,minute:31,hour:51,day:701,week:4001,fortnight:6001,month:10001,year:90001|-|d=batch:773|-"
+	notationString := "cr-d-|c=all:20|r=all:10,batch:4,minute:3,hour:5,day:70,week:400,fortnight:600,month:1000,year:9000|"
 	permission := NotationToPermission(notationString)
 	jsonString, _ := json.Marshal(permission)
 	t.Errorf("Got \n %s", jsonString)
