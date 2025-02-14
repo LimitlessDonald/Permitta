@@ -12,7 +12,7 @@ var SampleOrgPermission = Permission{
 	Update:  false,
 	Delete:  false,
 	Execute: true,
-	CreateActionLimits: ActionLimit{
+	CreateOperationLimits: OperationLimit{
 		AllTimeLimit:         0,
 		BatchLimit:           1,
 		PerMinuteLimit:       0,
@@ -25,7 +25,7 @@ var SampleOrgPermission = Permission{
 		PerYearLimit:         0,
 		CustomDurationsLimit: nil,
 	},
-	ReadActionLimits: ActionLimit{
+	ReadOperationLimits: OperationLimit{
 		AllTimeLimit:         0,
 		BatchLimit:           2,
 		PerMinuteLimit:       0,
@@ -46,7 +46,7 @@ var SampleUserPermission = Permission{
 	Update:  false,
 	Delete:  false,
 	Execute: true,
-	CreateActionLimits: ActionLimit{
+	CreateOperationLimits: OperationLimit{
 		AllTimeLimit:         0,
 		BatchLimit:           1,
 		PerMinuteLimit:       0,
@@ -59,7 +59,7 @@ var SampleUserPermission = Permission{
 		PerYearLimit:         0,
 		CustomDurationsLimit: nil,
 	},
-	ReadActionLimits: ActionLimit{
+	ReadOperationLimits: OperationLimit{
 		AllTimeLimit:         5,
 		BatchLimit:           2,
 		PerMinuteLimit:       0,
@@ -74,9 +74,9 @@ var SampleUserPermission = Permission{
 	},
 }
 
-func TestIsActionPermitted(t *testing.T) {
+func TestIsOperationPermitted(t *testing.T) {
 	permissionRequestData := PermissionRequestData{
-		ActionType:              "read",
+		Operation:               "read",
 		UserEntityPermissions:   Permission{},
 		RoleEntityPermissions:   Permission{},
 		GroupEntityPermissions:  Permission{},
@@ -84,16 +84,16 @@ func TestIsActionPermitted(t *testing.T) {
 		OrgEntityPermissions:    Permission{},
 		EntityPermissionOrder:   "org->user",
 	}
-	isActionPermitted := IsActionPermitted(permissionRequestData)
-	//if isActionPermitted == true {
-	t.Errorf("Expected true got %s", strconv.FormatBool(isActionPermitted))
+	isOperationPermitted := IsOperationPermitted(permissionRequestData)
+	//if isOperationPermitted == true {
+	t.Errorf("Expected true got %s", strconv.FormatBool(isOperationPermitted))
 	//}
 }
 
-func TestIsActionPermittedWithUsage(t *testing.T) {
+func TestIsOperationPermittedWithUsage(t *testing.T) {
 	permissionRequestData := PermissionWithUsageRequestData{
 		PermissionRequestData: PermissionRequestData{
-			ActionType:              "read",
+			Operation:               "read",
 			UserEntityPermissions:   SampleUserPermission,
 			RoleEntityPermissions:   Permission{},
 			GroupEntityPermissions:  Permission{},
@@ -101,7 +101,7 @@ func TestIsActionPermittedWithUsage(t *testing.T) {
 			OrgEntityPermissions:    SampleOrgPermission,
 			EntityPermissionOrder:   "org->user",
 		},
-		ActionQuantity:    2,
+		OperationQuantity: 2,
 		UserEntityUsage:   PermissionUsage{},
 		RoleEntityUsage:   PermissionUsage{},
 		GroupEntityUsage:  PermissionUsage{},
@@ -109,8 +109,8 @@ func TestIsActionPermittedWithUsage(t *testing.T) {
 		OrgEntityUsage:    PermissionUsage{},
 	}
 
-	isActionPermittedWithUsage := IsActionPermittedWithUsage(permissionRequestData)
-	t.Errorf("Expected true got %s", strconv.FormatBool(isActionPermittedWithUsage))
+	isOperationPermittedWithUsage := IsOperationPermittedWithUsage(permissionRequestData)
+	t.Errorf("Expected true got %s", strconv.FormatBool(isOperationPermittedWithUsage))
 }
 
 func TestNotationToPermission(t *testing.T) {

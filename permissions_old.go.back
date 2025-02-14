@@ -42,7 +42,7 @@ type Permission struct {
 	CreateLimitPerMonth       uint   `json:"createLimitPerMonth"`     // Limit for every 30 days from FirstCreateTime  //todo, does it make sense to use FirstCreateTime or LastCreateTime
 	CreateLimitPerQuarter     uint   `json:"createLimitPerQuarter"`   // 3 months, 90 days
 	CreateLimitPerYear        uint   `json:"createLimitPerYear"`
-	CreateLimitCustomDurations []string `json:"createLimitCustomDurations"` // can be used to control very fine-grained custom limit , it takes the form "per_uint_duration_uint" , e.g "per_5_minutes_2" . In this example, its means this action is limited to only 2 every 5 minutes
+	CreateLimitCustomDurations []string `json:"createLimitCustomDurations"` // can be used to control very fine-grained custom limit , it takes the form "per_uint_duration_uint" , e.g "per_5_minutes_2" . In this example, its means this operation is limited to only 2 every 5 minutes
 
 	// END CREATE FIELDS
 
@@ -69,7 +69,7 @@ type Permission struct {
 	ReadLimitPerMonth       uint   `json:"readLimitPerMonth"`     // Limit for every 30 days from FirstReadTime  //todo, does it make sense to use FirstReadTime or LastReadTime
 	ReadLimitPerQuarter     uint   `json:"readLimitPerQuarter"`   // 3 months, 90 days
 	ReadLimitPerYear        uint   `json:"readLimitPerYear"`
-	ReadLimitCustomDurations []string `json:"readLimitCustomDurations"` // can be used to control very fine-grained custom limit , it takes the form "per_uint_duration_uint" , e.g "per_5_minutes_2" . In this example, its means this action is limited to only 2 every 5 minutes
+	ReadLimitCustomDurations []string `json:"readLimitCustomDurations"` // can be used to control very fine-grained custom limit , it takes the form "per_uint_duration_uint" , e.g "per_5_minutes_2" . In this example, its means this operation is limited to only 2 every 5 minutes
 
 	// END READ FIELDS
 
@@ -96,7 +96,7 @@ type Permission struct {
 	UpdateLimitPerMonth       uint   `json:"updateLimitPerMonth"`     // Limit for every 30 days from FirstUpdateTime  //todo, does it make sense to use FirstUpdateTime or LastUpdateTime
 	UpdateLimitPerQuarter     uint   `json:"updateLimitPerQuarter"`   // 3 months, 90 days
 	UpdateLimitPerYear        uint   `json:"updateLimitPerYear"`
-	UpdateLimitCustomDurations []string `json:"updateLimitCustomDurations"` // can be used to control very fine-grained custom limit , it takes the form "per_uint_duration_uint" , e.g "per_5_minutes_2" . In this example, its means this action is limited to only 2 every 5 minutes
+	UpdateLimitCustomDurations []string `json:"updateLimitCustomDurations"` // can be used to control very fine-grained custom limit , it takes the form "per_uint_duration_uint" , e.g "per_5_minutes_2" . In this example, its means this operation is limited to only 2 every 5 minutes
 
 	// END UPDATE FIELDS
 
@@ -123,7 +123,7 @@ type Permission struct {
 	DeleteLimitPerMonth       uint   `json:"deleteLimitPerMonth"`     // Limit for every 30 days from FirstDeleteTime  //todo, does it make sense to use FirstDeleteTime or LastDeleteTime
 	DeleteLimitPerQuarter     uint   `json:"deleteLimitPerQuarter"`   // 3 months, 90 days
 	DeleteLimitPerYear        uint   `json:"deleteLimitPerYear"`
-	DeleteLimitCustomDurations []string `json:"deleteLimitCustomDurations"` // can be used to control very fine-grained custom limit , it takes the form "per_uint_duration_uint" , e.g "per_5_minutes_2" . In this example, its means this action is limited to only 2 every 5 minutes
+	DeleteLimitCustomDurations []string `json:"deleteLimitCustomDurations"` // can be used to control very fine-grained custom limit , it takes the form "per_uint_duration_uint" , e.g "per_5_minutes_2" . In this example, its means this operation is limited to only 2 every 5 minutes
 
 	// END DELETE FIELDS
 
@@ -150,13 +150,13 @@ type Permission struct {
 	ExecuteLimitPerMonth       uint   `json:"executeLimitPerMonth"`     // Limit for every 30 days from FirstExecuteTime  //todo, does it make sense to use FirstExecuteTime or LastExecuteTime
 	ExecuteLimitPerQuarter     uint   `json:"executeLimitPerQuarter"`   // 3 months, 90 days
 	ExecuteLimitPerYear        uint   `json:"executeLimitPerYear"`
-	ExecuteLimitCustomDurations []string `json:"executeLimitCustomDurations"` // can be used to control very fine-grained custom limit , it takes the form "per_uint_duration_uint" , e.g "per_5_minutes_2" . In this example, its means this action is limited to only 2 every 5 minutes
+	ExecuteLimitCustomDurations []string `json:"executeLimitCustomDurations"` // can be used to control very fine-grained custom limit , it takes the form "per_uint_duration_uint" , e.g "per_5_minutes_2" . In this example, its means this operation is limited to only 2 every 5 minutes
 
 	// END EXECUTE FIELDS
 
 }
 
-type ActionLimits struct{
+type OperationLimits struct{
 	AllTimeLimit        uint   `json:"allTimeLimit"` // Can be used to control how many of an item can be stored . For example the total file size you can have stored at any time is 5GB , not to be confused with DeleteLimitBatch
 	BatchLimit        uint   `json:"batchLimit"` // Can be used to limit how many of an item can be deleted at once, or at a time, for example limiting a user to adding 5 files at once . If this value is 5, the user won't be able to delete more than 5 items at once
 	PerMinuteLimit      uint   `json:"perMinuteLimit"`
@@ -185,7 +185,7 @@ type PermissionUsage struct {
 	TotalCreatedWithinTheLastMonth          uint      `json:"totalCreatedWithinTheLastMonth"`
 	TotalCreatedWithinTheLastQuarter        uint      `json:"totalCreatedWithinTheLastQuarter"`
 	TotalCreatedWithinTheLastYear           uint      `json:"totalCreatedWithinTheLastYear"`
-	TotalCreatedWithinTheLastCustomDurations []string    // can be used to record usage that happened within a custom time frame it takes the form "last_uint_duration_uint" e.g "last_10_minutes_4" . In this example, it means, this action has been used 4 times in the last 10 minutes
+	TotalCreatedWithinTheLastCustomDurations []string    // can be used to record usage that happened within a custom time frame it takes the form "last_uint_duration_uint" e.g "last_10_minutes_4" . In this example, it means, this operation has been used 4 times in the last 10 minutes
 	//END CREATE FIELDS
 
 	//START READ FIELDS
@@ -201,7 +201,7 @@ type PermissionUsage struct {
 	TotalReadWithinTheLastMonth          uint      `json:"totalReadWithinTheLastMonth"`
 	TotalReadWithinTheLastQuarter        uint      `json:"totalReadWithinTheLastQuarter"`
 	TotalReadWithinTheLastYear           uint      `json:"totalReadWithinTheLastYear"`
-	TotalReadWithinTheLastCustomDurations []string    // can be used to record usage that happened within a custom time frame it takes the form "last_uint_duration_uint" e.g "last_10_minutes_4" . In this example, it means, this action has been used 4 times in the last 10 minutes
+	TotalReadWithinTheLastCustomDurations []string    // can be used to record usage that happened within a custom time frame it takes the form "last_uint_duration_uint" e.g "last_10_minutes_4" . In this example, it means, this operation has been used 4 times in the last 10 minutes
 	//END READ FIELDS
 
 	// START UPDATE FIELDS
@@ -217,7 +217,7 @@ type PermissionUsage struct {
 	TotalUpdatedWithinTheLastMonth          uint      `json:"totalUpdatedWithinTheLastMonth"`
 	TotalUpdatedWithinTheLastQuarter        uint      `json:"totalUpdatedWithinTheLastQuarter"`
 	TotalUpdatedWithinTheLastYear           uint      `json:"totalUpdatedWithinTheLastYear"`
-	TotalUpdatedWithinTheLastCustomDurations []string    // can be used to record usage that happened within a custom time frame it takes the form "last_uint_duration_uint" e.g "last_10_minutes_4" . In this example, it means, this action has been used 4 times in the last 10 minutes
+	TotalUpdatedWithinTheLastCustomDurations []string    // can be used to record usage that happened within a custom time frame it takes the form "last_uint_duration_uint" e.g "last_10_minutes_4" . In this example, it means, this operation has been used 4 times in the last 10 minutes
 	//END UPDATE FIELDS
 
 	//START DELETE FIELDS
@@ -233,7 +233,7 @@ type PermissionUsage struct {
 	TotalDeletedWithinTheLastMonth          uint      `json:"totalDeletedWithinTheLastMonth"`
 	TotalDeletedWithinTheLastQuarter        uint      `json:"totalDeletedWithinTheLastQuarter"`
 	TotalDeletedWithinTheLastYear           uint      `json:"totalDeletedWithinTheLastYear"`
-	TotalDeletedWithinTheLastCustomDurations []string    // can be used to record usage that happened within a custom time frame it takes the form "last_uint_duration_uint" e.g "last_10_minutes_4" . In this example, it means, this action has been used 4 times in the last 10 minutes
+	TotalDeletedWithinTheLastCustomDurations []string    // can be used to record usage that happened within a custom time frame it takes the form "last_uint_duration_uint" e.g "last_10_minutes_4" . In this example, it means, this operation has been used 4 times in the last 10 minutes
 	//END DELETE FIELDS
 
 	//START EXECUTE FIELDS
@@ -249,14 +249,14 @@ type PermissionUsage struct {
 	TotalExecutedWithinTheLastMonth          uint      `json:"totalExecutedWithinTheLastMonth"`
 	TotalExecutedWithinTheLastQuarter        uint      `json:"totalExecutedWithinTheLastQuarter"`
 	TotalExecutedWithinTheLastYear           uint      `json:"totalExecutedWithinTheLastYear"`
-	TotalExecutedWithinTheLastCustomDurations []string    // can be used to record usage that happened within a custom time frame it takes the form "last_uint_duration_uint" e.g "last_10_minutes_4" . In this example, it means, this action has been used 4 times in the last 10 minutes
+	TotalExecutedWithinTheLastCustomDurations []string    // can be used to record usage that happened within a custom time frame it takes the form "last_uint_duration_uint" e.g "last_10_minutes_4" . In this example, it means, this operation has been used 4 times in the last 10 minutes
 	//END EXECUTE FIELDS
 
 }
 
-// PermissionRequestData is a struct that holds data concerning the permission request . It includes things like users,roles,groups,actionType(constants.ActionTypeCreate|constants.ActionTypeRead....) etc. necessary to help get permission status
+// PermissionRequestData is a struct that holds data concerning the permission request . It includes things like users,roles,groups,operation(constants.OperationCreate|constants.OperationRead....) etc. necessary to help get permission status
 type PermissionRequestData struct {
-	ActionType              string
+	Operation              string
 	UserEntityPermissions   Permission
 	RoleEntityPermissions   Permission
 	GroupEntityPermissions  Permission
@@ -265,10 +265,10 @@ type PermissionRequestData struct {
 	PermissionOrder         string     // the flow in which the permission should take e.g org->domain->group->role->user //default order is org->
 }
 
-// PermissionWithUsageRequestData to hold permission data and also check permission against usage and limits, so if actionQuantity + usage exceeds limit, deny access, but if its less or equal to grant access, hope you get the gist
+// PermissionWithUsageRequestData to hold permission data and also check permission against usage and limits, so if operationQuantity + usage exceeds limit, deny access, but if its less or equal to grant access, hope you get the gist
 type PermissionWithUsageRequestData struct {
 	PermissionRequestData
-	ActionQuantity    uint
+	OperationQuantity    uint
 	UserEntityUsage   PermissionUsage
 	RoleEntityUsage   PermissionUsage
 	GroupEntityUsage  PermissionUsage
@@ -276,20 +276,20 @@ type PermissionWithUsageRequestData struct {
 	OrgEntityUsage    PermissionUsage
 }
 
-func IsActionPermitted(permissionRequestData PermissionRequestData) bool {
-	actionType := permissionRequestData.ActionType
+func IsOperationPermitted(permissionRequestData PermissionRequestData) bool {
+	operation := permissionRequestData.Operation
 	permissionOrder := getPermissionOrder(permissionRequestData.PermissionOrder)
 	var permissions Permission
 	var emptyPermission Permission
 	finalPermittedValue := false
 
-	// only allow CRUDE(Create, Read, Update, Delete,Execute) action types
-	if isActionTypeValid(actionType) == false {
-		fmt.Println("Invalid action type")
+	// only allow CRUDE(Create, Read, Update, Delete,Execute) operations
+	if isOperationValid(operation) == false {
+		fmt.Println("Invalid operation")
 		return false
 	}
 
-	// let's split the order and loop through it to get each entity action permission,
+	// let's split the order and loop through it to get each entity operation permission,
 
 	// ensure the order contains the separator first , before attempting to split
 	if len(permissionOrder) >= constants.MinimumPermissionOrderLength && strings.Contains(permissionOrder, constants.OrderSeparator) {
@@ -310,15 +310,15 @@ func IsActionPermitted(permissionRequestData PermissionRequestData) bool {
 					continue
 				}
 
-				isCurrentEntityPermitted := IsEntityActionPermitted(actionType, permissions)
+				isCurrentEntityPermitted := IsEntityOperationPermitted(operation, permissions)
 				if isCurrentEntityPermitted == false {
 					return false
 				}
 				// if current entity is permitted, and we are not on the last entity in the order, continue
 				if (isCurrentEntityPermitted == true) && (i != len(splitOrder)-1) {
-					// its important we set final permitted to true here, because if this entity action type in the order is filled and permitted , but all other proceeding entity Permission struct are empty, it would give a wrong result
+					// its important we set final permitted to true here, because if this entity operation in the order is filled and permitted , but all other proceeding entity Permission struct are empty, it would give a wrong result
 					//So we need to save current permission value as true , in case other permission data are empty
-					// NOTE that empty is not same as false, if the actionType we are checking for proceeding permission structs is not empty and marked as false, the condition above would return false
+					// NOTE that empty is not same as false, if the operation we are checking for proceeding permission structs is not empty and marked as false, the condition above would return false
 					finalPermittedValue = true
 					continue
 				}
@@ -336,13 +336,13 @@ func IsActionPermitted(permissionRequestData PermissionRequestData) bool {
 
 //todo [LATER] optimise this function , its looping through the permissions twice
 
-// IsActionPermittedWithUsage is a function to check if action is permitted, then it checks the usage following the PermissionRequestData.PermissionOrder
-// It loops through each entity in the order and checks permission against request usage + actionQuantity for each limit type
+// IsOperationPermittedWithUsage is a function to check if operation is permitted, then it checks the usage following the PermissionRequestData.PermissionOrder
+// It loops through each entity in the order and checks permission against request usage + operationQuantity for each limit type
 // WHat does this mean let's say our request data is like this :
 /**
  data:= PermissionWithUsageRequestData  {
 	PermissionRequestData : PermissionRequestData {
-			ActionType : "create"
+			Operation : "create"
 			UserEntityPermissions: userPermission
 			RoleEntityPermissions :  rolePermission
 			GroupEntityPermissions:  Permission
@@ -350,13 +350,13 @@ func IsActionPermitted(permissionRequestData PermissionRequestData) bool {
 			OrgEntityPermissions    Permission //Organization Permissions
 			PermissionOrder   string
 		}
-	ActionQuantity uint
+	OperationQuantity uint
 	Usage          PermissionUsage
 }
 
 */
-func IsActionPermittedWithUsage(requestData PermissionWithUsageRequestData) bool {
-	actionQuantity:=requestData.ActionQuantity
+func IsOperationPermittedWithUsage(requestData PermissionWithUsageRequestData) bool {
+	operationQuantity:=requestData.OperationQuantity
 	var limitFieldPrefix string
 	var usageTotalFieldInfix string
 	//var firstTimeField string
@@ -366,13 +366,13 @@ func IsActionPermittedWithUsage(requestData PermissionWithUsageRequestData) bool
 	var entityUsage PermissionUsage
 
 	permissionOrder := getPermissionOrder(requestData.PermissionOrder)
-	// first check if action is permitted based on the actionType
-	isActionPermitted := IsActionPermitted(requestData.PermissionRequestData)
-	if isActionPermitted == false {
+	// first check if operation is permitted based on the operation
+	isOperationPermitted := IsOperationPermitted(requestData.PermissionRequestData)
+	if isOperationPermitted == false {
 		return false
 	}
 
-	if requestData.ActionType == constants.ActionTypeCreate {
+	if requestData.Operation == constants.OperationCreate {
 		limitFieldPrefix = "Create"
 		usageTotalFieldInfix="Created"
 
@@ -380,7 +380,7 @@ func IsActionPermittedWithUsage(requestData PermissionWithUsageRequestData) bool
 		//lastTimeField = "LastCreateTime"
 		//lastQuantityField = "LastCreateQuantity"
 	}
-	if requestData.ActionType == constants.ActionTypeRead {
+	if requestData.Operation == constants.OperationRead {
 		limitFieldPrefix = "Read"
 		usageTotalFieldInfix="Read"
 
@@ -388,7 +388,7 @@ func IsActionPermittedWithUsage(requestData PermissionWithUsageRequestData) bool
 		//lastTimeField = "LastReadTime"
 		//lastQuantityField = "LastReadQuantity"
 	}
-	if requestData.ActionType == constants.ActionTypeUpdate {
+	if requestData.Operation == constants.OperationUpdate {
 		limitFieldPrefix = "Update"
 		usageTotalFieldInfix="Updated"
 
@@ -397,7 +397,7 @@ func IsActionPermittedWithUsage(requestData PermissionWithUsageRequestData) bool
 		//lastQuantityField = "LastUpdateQuantity"
 	}
 
-	if requestData.ActionType == constants.ActionTypeDelete {
+	if requestData.Operation == constants.OperationDelete {
 		limitFieldPrefix = "Delete"
 		usageTotalFieldInfix="Deleted"
 
@@ -406,7 +406,7 @@ func IsActionPermittedWithUsage(requestData PermissionWithUsageRequestData) bool
 		//lastQuantityField = "LastDeleteQuantity"
 	}
 
-	if requestData.ActionType == constants.ActionTypeExecute {
+	if requestData.Operation == constants.OperationExecute {
 		limitFieldPrefix = "Execute"
 		usageTotalFieldInfix="Executed"
 
@@ -446,10 +446,10 @@ func IsActionPermittedWithUsage(requestData PermissionWithUsageRequestData) bool
 
 
 	// Loop through all the usage according to the entity order
-	// compare each action quantity + usage , if the addition is more than its appropriate limit deny access
+	// compare each operation quantity + usage , if the addition is more than its appropriate limit deny access
 	// for example, if I am doing a creating 5 files batch , it loops through all the entity's and the limit, it first checks the "batch" limit, if the limit for "batch" is less or equal to 5 continue,
-	// following the order, within that same order, it checks all other limits against the usage, if the usage + action quantity exceeds the corresponding limit, deny access
-	if isActionPermitted == true {
+	// following the order, within that same order, it checks all other limits against the usage, if the usage + operation quantity exceeds the corresponding limit, deny access
+	if isOperationPermitted == true {
 
 		if len(permissionOrder) >= constants.MinimumPermissionOrderLength && strings.Contains(permissionOrder, constants.OrderSeparator) {
 			splitOrder := strings.Split(permissionOrder, constants.OrderSeparator)
@@ -467,7 +467,7 @@ func IsActionPermittedWithUsage(requestData PermissionWithUsageRequestData) bool
 					// Get entity usage
 					entityUsage=getEntityPermissionUsage(currentEntity,requestData)
 
-					// Now let's get values of the various fields we need for the current action we are checking permission for
+					// Now let's get values of the various fields we need for the current operation we are checking permission for
 
 					// Let's start with limits
 					limitAllTimeValue, _ :=getUintValueFromStructFieldByName(entityPermissions,limitAllTimeField)
@@ -529,63 +529,63 @@ func IsActionPermittedWithUsage(requestData PermissionWithUsageRequestData) bool
 					// todo if any of the limit values or usage values is -1 or less than 0 deny access because something is not normal , they should be uint values
 
 
-					// TODO Document that batch limit is a compulsory field to fill, its slightly different from every other limit  where 0  denotes unlimited . If batch limit for any action is left at the default struct field of 0 the permission request would FAIL, the whole point is to protect anyone who uses permitta from a spamming, where
-					// TODO CONTD - where users try to perform too many actions at once
+					// TODO Document that batch limit is a compulsory field to fill, its slightly different from every other limit  where 0  denotes unlimited . If batch limit for any operation is left at the default struct field of 0 the permission request would FAIL, the whole point is to protect anyone who uses permitta from a spamming, where
+					// TODO CONTD - where users try to perform too many operations at once
 
 					// if limitBatchB
 					// First check ^LimitBatch is not exceeded , if its exceeded deny permission, there is no need to check the next order
 					// Also if fore some reason limitBatchValue is -1 , this is not a valid value, so deny permission
 					// limitBatchValue is not like other limits where 0 denotes unlimited, this forces any permitta user to set a strict batch limit value
-					if actionQuantity>limitBatchValue{
+					if operationQuantity>limitBatchValue{
 						return false
 					}
 
 
 					// Next let's check all time limit for current entity, and deny access if exceeded
-					// to do that , we ensure action quantity + all time usage doesn't exceed all time limit , and the all-time limit value isn't unlimited =0
-					if (actionQuantity+usageAllTimeValue > limitAllTimeValue) && limitAllTimeValue!=constants.Unlimited{
+					// to do that , we ensure operation quantity + all time usage doesn't exceed all time limit , and the all-time limit value isn't unlimited =0
+					if (operationQuantity+usageAllTimeValue > limitAllTimeValue) && limitAllTimeValue!=constants.Unlimited{
 						return false
 					}
 
 					// next check per minute limit
-					if (actionQuantity+usageWithinMinuteValue > limitPerMinuteValue) && limitPerMinuteValue!=constants.Unlimited{
+					if (operationQuantity+usageWithinMinuteValue > limitPerMinuteValue) && limitPerMinuteValue!=constants.Unlimited{
 						return false
 					}
 
 					// next check per hour limit
-					if (actionQuantity+usageWithinHourValue > limitPerHourValue) && limitPerHourValue!=constants.Unlimited{
+					if (operationQuantity+usageWithinHourValue > limitPerHourValue) && limitPerHourValue!=constants.Unlimited{
 						return false
 					}
 
 					// next check per day limit
-					if (actionQuantity+usageWithinDayValue > limitPerDayValue) && limitPerDayValue!=constants.Unlimited{
+					if (operationQuantity+usageWithinDayValue > limitPerDayValue) && limitPerDayValue!=constants.Unlimited{
 						return false
 					}
 
 					// next check per week limit
-					if (actionQuantity+usageWithinWeekValue > limitPerWeekValue) && limitPerWeekValue!=constants.Unlimited{
+					if (operationQuantity+usageWithinWeekValue > limitPerWeekValue) && limitPerWeekValue!=constants.Unlimited{
 						return false
 					}
 
 					// next check per fortnight limit
-					if (actionQuantity+usageWithinFortnightValue > limitPerFortnightValue) && limitPerFortnightValue!=constants.Unlimited{
+					if (operationQuantity+usageWithinFortnightValue > limitPerFortnightValue) && limitPerFortnightValue!=constants.Unlimited{
 						return false
 					}
 
 					// next check per month limit
-					if (actionQuantity+usageWithinMonthValue > limitPerMonthValue) && limitPerMonthValue!=constants.Unlimited{
+					if (operationQuantity+usageWithinMonthValue > limitPerMonthValue) && limitPerMonthValue!=constants.Unlimited{
 						return false
 					}
 
 
 					// next check per quarter limit
-					if (actionQuantity+usageWithinQuarterValue > limitPerQuarterValue) && limitPerQuarterValue!=constants.Unlimited{
+					if (operationQuantity+usageWithinQuarterValue > limitPerQuarterValue) && limitPerQuarterValue!=constants.Unlimited{
 						return false
 					}
 
 
 					// next check per year limit
-					if (actionQuantity+usageWithinYearValue > limitPerYearValue) && limitPerYearValue!=constants.Unlimited{
+					if (operationQuantity+usageWithinYearValue > limitPerYearValue) && limitPerYearValue!=constants.Unlimited{
 						return false
 					}
 
@@ -612,13 +612,13 @@ func IsActionPermittedWithUsage(requestData PermissionWithUsageRequestData) bool
 	return false
 }
 
-func IsEntityActionPermitted(actionType string, entityPermissions Permission) bool {
-	// ensure the action type is correct
-	if isActionTypeValid(actionType) == false {
+func IsEntityOperationPermitted(operation string, entityPermissions Permission) bool {
+	// ensure the operation is correct
+	if isOperationValid(operation) == false {
 		return false
 	}
-	// the name of the struct field of the action type, whether its Create,Read....
-	structFieldName := firstLetterToUppercase(actionType)
+	// the name of the struct field of the operation, whether its Create,Read....
+	structFieldName := firstLetterToUppercase(operation)
 	//case as bool
 	structFieldValue, _ := getValueFromStructFieldByName(entityPermissions, structFieldName)
 	if structFieldValue == nil {
@@ -632,31 +632,31 @@ func IsEntityActionPermitted(actionType string, entityPermissions Permission) bo
 
 }
 
-func isActionTypeValid(actionType string) bool {
-	// ensure the action type is correct
-	if actionType != constants.ActionTypeCreate &&
-		actionType != constants.ActionTypeRead &&
-		actionType != constants.ActionTypeUpdate &&
-		actionType != constants.ActionTypeDelete &&
-		actionType != constants.ActionTypeExecute {
+func isOperationValid(operation string) bool {
+	// ensure the operation is correct
+	if operation != constants.OperationCreate &&
+		operation != constants.OperationRead &&
+		operation != constants.OperationUpdate &&
+		operation != constants.OperationDelete &&
+		operation != constants.OperationExecute {
 		return false
 	}
 
 	return true
 }
 
-//func getActionFieldName(actionType string)string{
-//	// ensure the action type is correct
-//	if isActionTypeValid(actionType)==false{
+//func getOperationFieldName(operation string)string{
+//	// ensure the operation is correct
+//	if isOperationValid(operation)==false{
 //		return ""
 //	}
-//	// the name of the struct field of the action type, whether its Create,Read....
+//	// the name of the struct field of the operation, whether its Create,Read....
 //
 //	structFieldName:=""
-//	switch actionType {
-//	case constants.ActionTypeCreate: structFieldName:="Create"
+//	switch operation {
+//	case constants.OperationCreate: structFieldName:="Create"
 //	break
-//	case constants.ActionTypeRead: structFieldName:="Read"
+//	case constants.OperationRead: structFieldName:="Read"
 //	break
 //
 //	}
@@ -786,7 +786,7 @@ func getEntityPermissionUsage(entityName string, usageRequestData PermissionWith
 }
 
 func isEntityValid(entityName string) bool {
-	// ensure the action type is correct
+	// ensure the operation is correct
 	if entityName != constants.EntityOrg &&
 		entityName != constants.EntityDomain &&
 		entityName != constants.EntityGroup &&
