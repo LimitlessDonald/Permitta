@@ -989,3 +989,26 @@ func getNotationOperationLimits(operationLimitsString string) (OperationLimit, e
 	return currentOperationLimit, fmt.Errorf("unknown error") //todo come back and improve this error message
 
 }
+
+// RequestMethodToOperation receives a valid HTTP request method and converts it to an operation, using the standard REST conventions of :
+//
+// POST => create , GET => read , PUT => update , DELETE => delete ,
+// todo add "execute operation"
+func RequestMethodToOperation(method string) string {
+	method = strings.ToUpper(method)
+	if method == "POST" {
+		return constants.OperationCreate
+	}
+	if method == "GET" {
+		return constants.OperationRead
+	}
+	if method == "PUT" {
+		return constants.OperationUpdate
+	}
+
+	if method == "DELETE" {
+		return constants.OperationDelete
+	}
+
+	return ""
+}
