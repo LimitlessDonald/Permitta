@@ -3,6 +3,7 @@ package permitta
 import (
 	"fmt"
 	constants "gitlab.com/launchbeaver/permitta/constants"
+	"reflect"
 	"regexp"
 	"strconv"
 	"strings"
@@ -383,6 +384,46 @@ func IsEntityOperationPermitted(operation string, entityPermissions Permission) 
 	return false
 }
 
+func GetOperationLimits(operation string, permission Permission) OperationLimit {
+	if operation == constants.OperationCreate {
+		return permission.CreateOperationLimits
+	}
+	if operation == constants.OperationRead {
+		return permission.ReadOperationLimits
+	}
+	if operation == constants.OperationUpdate {
+		return permission.UpdateOperationLimits
+	}
+	if operation == constants.OperationDelete {
+		return permission.DeleteOperationLimits
+	}
+
+	if operation == constants.OperationExecute {
+		return permission.ExecuteOperationLimits
+	}
+
+	return OperationLimit{}
+}
+
+// GetOperationLimitsHumanFriendly outputs the limits in a map of human friendly format.
+// For example, since 0 denotes "unlimited", we want to literally have the limit value as unlimited
+func GetOperationLimitsHumanFriendly(operation string, permission Permission) map[string]string {
+	thisOperationLimits := GetOperationLimits(operation, permission)
+
+	m := make(map[string]string)
+	rv := reflect.ValueOf(thisOperationLimits)
+	if rv.Kind() == reflect.Ptr {
+		rv = rv.Elem()
+	}
+	for i := 0; i < rv.NumField(); i++ {
+		field := rv.Field(i)
+
+		m[rv.Type().Field(i).Name] = fmt.Sprintf("%v", field.Interface())
+
+	}
+	return m
+
+}
 func isOperationValid(operation string) bool {
 	// ensure the operation is correct
 	if operation != constants.OperationCreate &&
