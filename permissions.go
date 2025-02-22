@@ -417,8 +417,11 @@ func GetOperationLimitsHumanFriendly(operation string, permission Permission) ma
 	}
 	for i := 0; i < rv.NumField(); i++ {
 		field := rv.Field(i)
-
-		m[rv.Type().Field(i).Name] = fmt.Sprintf("%v", field.Interface())
+		fieldValue := fmt.Sprintf("%v", field.Interface())
+		if fieldValue == fmt.Sprintf("%v", constants.Unlimited) {
+			fieldValue = constants.UnlimitedString
+		}
+		m[rv.Type().Field(i).Name] = fieldValue
 
 	}
 	return m

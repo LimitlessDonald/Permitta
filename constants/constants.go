@@ -2,6 +2,7 @@ package permittaConstants
 
 const (
 	Unlimited                          = 0
+	UnlimitedString                    = "unlimited"
 	MinimumEntityPermissionOrderLength = 3
 	OrderSeparator                     = "->"
 	DefaultEntityPermissionOrder       = EntityOrg + OrderSeparator + EntityDomain + OrderSeparator + EntityGroup + OrderSeparator + EntityRole + OrderSeparator + EntityUser
