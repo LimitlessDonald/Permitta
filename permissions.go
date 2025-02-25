@@ -405,6 +405,27 @@ func GetOperationLimits(operation string, permission Permission) OperationLimit 
 	return OperationLimit{}
 }
 
+func GetOperationUsages(operation string, permissionUsage PermissionUsage) OperationUsage {
+	if operation == constants.OperationCreate {
+		return permissionUsage.CreateOperationUsages
+	}
+	if operation == constants.OperationRead {
+		return permissionUsage.ReadOperationUsages
+	}
+	if operation == constants.OperationUpdate {
+		return permissionUsage.UpdateOperationUsages
+	}
+	if operation == constants.OperationDelete {
+		return permissionUsage.DeleteOperationUsages
+	}
+
+	if operation == constants.OperationExecute {
+		return permissionUsage.ExecuteOperationUsages
+	}
+
+	return OperationUsage{}
+}
+
 // GetOperationLimitsHumanFriendly outputs the limits in a map of human friendly format.
 // For example, since 0 denotes "unlimited", we want to literally have the limit value as unlimited
 func GetOperationLimitsHumanFriendly(operation string, permission Permission) map[string]string {
