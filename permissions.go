@@ -1,6 +1,7 @@
 package permitta
 
 import (
+	"errors"
 	"fmt"
 	constants "gitlab.com/launchbeaver/permitta/constants"
 	"reflect"
@@ -14,11 +15,17 @@ import (
 
 // Permission is a very important struct that can be used as an embedded struct to control permissions for just about anything or used as a type, of a struct field
 type Permission struct {
-	Create  bool `json:"create"`
-	Read    bool `json:"read"`
-	Update  bool `json:"update"`
-	Delete  bool `json:"delete"`
-	Execute bool `json:"execute"`
+	// QuotaLimit is a way to place a HARD limit of how much of the resource can exist at any given time
+	// This is not to be confused with AllTimeLimit of each operation
+	// Here is a good real world scenario. If I set a file  QuotaLimit of 100GB , I can't have more than 100GB of files saved , but I could have a CreateOperation AllTimeLimit of 1TB , this means I can create up to a maximum total files of 1TB , as long as I delete excess files before creating new ones
+	// Every time I delete(Delete Operation) a resource (files in this case), I reduce the QuotaUsage by the OperationQuantity , when I create(Create Operation) , I also increase the QuotaUsage by the OperationQuantity
+	// If QuotaLimit is 0, this means it's unlimited , so a unlimited number of resource can exist, this also implies that Create Operation is essentially unlimited, BUT the duration based limits and AllTime limit would still take effect
+	QuotaLimit uint
+	Create     bool `json:"create"`
+	Read       bool `json:"read"`
+	Update     bool `json:"update"`
+	Delete     bool `json:"delete"`
+	Execute    bool `json:"execute"`
 
 	CreateOperationLimits  OperationLimit `json:"createOperationLimits"`
 	ReadOperationLimits    OperationLimit `json:"readOperationLimits"`
@@ -29,7 +36,7 @@ type Permission struct {
 
 type OperationLimit struct {
 	BatchLimit           uint     `json:"batchLimit"`   // Can be used to limit how many of an item can be deleted at once, or at a time, for example limiting a user to adding 5 files at once . If this value is 5, the user won't be able to delete more than 5 items at once. Batch can't be 0 which denotes unlimited, it has to be 1 or above, the default value if not set won't be 0, but 1
-	AllTimeLimit         uint     `json:"allTimeLimit"` // Can be used to control how many of an item can be stored . For example the total file size you can have stored at any time is 5GB
+	AllTimeLimit         uint     `json:"allTimeLimit"` // Can be used to control how many of an item can be created all Time
 	PerMinuteLimit       uint     `json:"perMinuteLimit"`
 	PerHourLimit         uint     `json:"perHourLimit"`
 	PerDayLimit          uint     `json:"perDayLimit"`
@@ -73,7 +80,55 @@ type OperationUsage struct {
 	WithinTheLastCustomDurations []string  `json:"withinTheLastCustomDurations"`
 }
 
+// sanitizeDurationUsage is a setter to  "sanitize" value of the usage durations
+// We need limit duration setters because their value can't always be trusted for checking permission access
+// what does this mean ?
+// Take this case scenario , I have a limit of 5 files per minute , if I created/used 5 files within a minute, 2 days ago and the usage has not been updated since then and I have not created any file since 2 days
+// the usage record would definitely still be 5, and I won't be allowed access , so we want to check LastTime and compare it with operation request time, which is time.Now() , because the usage listed here, may have "expired" and we are no longer in the window of that duration
+// in this specific case of "WithinMinute", if a minute has exceeded we need to reset the WithinTheLastXDuration usage
+func (operationUsage *OperationUsage) sanitizeDurationUsage() {
+	durationDiff := time.Now().Sub(operationUsage.LastTime)
+	// let's start with within the last minute
+
+	// if a minute has passed since the lastTime, reset the usage
+	if durationDiff > time.Minute {
+		operationUsage.WithinTheLastMinute = 0
+	}
+
+	if durationDiff > time.Hour {
+		operationUsage.WithinTheLastHour = 0
+	}
+
+	if durationDiff > constants.TimeDurationDay {
+		operationUsage.WithinTheLastDay = 0
+	}
+
+	if durationDiff > constants.TimeDurationWeek {
+		operationUsage.WithinTheLastWeek = 0
+	}
+
+	if durationDiff > constants.TimeDurationFortnight {
+		operationUsage.WithinTheLastFortnight = 0
+	}
+
+	if durationDiff > constants.TimeDurationMonth {
+		operationUsage.WithinTheLastMonth = 0
+	}
+
+	if durationDiff > constants.TimeDurationQuarter {
+		operationUsage.WithinTheLastQuarter = 0
+	}
+
+	if durationDiff > constants.TimeDurationYear {
+		operationUsage.WithinTheLastYear = 0
+	}
+
+	//todo custom durations  operationUsage  sanitization
+
+}
+
 type PermissionUsage struct {
+	QuotaUsage             uint
 	CreateOperationUsages  OperationUsage
 	ReadOperationUsages    OperationUsage
 	UpdateOperationUsages  OperationUsage
@@ -218,6 +273,7 @@ func IsOperationPermittedWithUsage(requestData PermissionWithUsageRequestData) b
 			// Now let's get values of the various fields we need for the current operation we are checking permission for
 
 			// Let's start with limits
+			quotaLimit := entityPermissions.QuotaLimit
 			allTimeLimit := operationLimits.AllTimeLimit
 			batchLimit := operationLimits.getBatchLimit()
 			perMinuteLimit := operationLimits.PerMinuteLimit
@@ -230,8 +286,10 @@ func IsOperationPermittedWithUsage(requestData PermissionWithUsageRequestData) b
 			perYearLimit := operationLimits.PerYearLimit
 			//customDurationsLimit:=operationLimits.CustomDurationsLimit
 
+			// NOTE THIS IS IMPORTANT DON'T REMOVE ELSE YOU MAY HAVE UNEXPECTED BEHAVIOUR - first let's sanitize usage
+			operationUsage.sanitizeDurationUsage()
 			// Let's get usage values
-
+			quotaUsage := entityUsage.QuotaUsage
 			allTimeUsage := operationUsage.AllTime
 			usageWithinMinute := operationUsage.WithinTheLastMinute
 			usageWithinHour := operationUsage.WithinTheLastHour
@@ -250,7 +308,8 @@ func IsOperationPermittedWithUsage(requestData PermissionWithUsageRequestData) b
 			}
 
 			// if any of the limit values is less than 0, deny permission, because that's not normal, I have taken precaution to prevent this, but just in case there is a scenario, I didn't consider that made invalid value slip through
-			if allTimeLimit < 0 ||
+			if quotaLimit < 0 ||
+				allTimeLimit < 0 ||
 				perMinuteLimit < 0 ||
 				perHourLimit < 0 ||
 				perDayLimit < 0 ||
@@ -263,7 +322,8 @@ func IsOperationPermittedWithUsage(requestData PermissionWithUsageRequestData) b
 				return false
 			}
 
-			if allTimeUsage < 0 ||
+			if quotaUsage < 0 ||
+				allTimeUsage < 0 ||
 				usageWithinMinute < 0 ||
 				usageWithinHour < 0 ||
 				usageWithinDay < 0 ||
@@ -289,10 +349,16 @@ func IsOperationPermittedWithUsage(requestData PermissionWithUsageRequestData) b
 				return false
 			}
 
+			//Check Quota Limit first , and only check Quota limit, when we are performing a create operation/permission request
+
+			if (requestData.Operation == constants.OperationCreate) && (operationQuantity+quotaUsage > quotaLimit) && (quotaLimit != constants.Unlimited) {
+
+				return false
+			}
+
 			// Next let's check all time limit for current entity, and deny access if exceeded
 			// to do that , we ensure operation quantity + all time usage doesn't exceed all time limit , and the all-time limit value isn't unlimited =0
 			if (operationQuantity+allTimeUsage > allTimeLimit) && allTimeLimit != constants.Unlimited {
-
 				return false
 			}
 
@@ -406,24 +472,28 @@ func GetOperationLimits(operation string, permission Permission) OperationLimit 
 }
 
 func GetOperationUsages(operation string, permissionUsage PermissionUsage) OperationUsage {
+	var operationUsage OperationUsage
 	if operation == constants.OperationCreate {
-		return permissionUsage.CreateOperationUsages
+		operationUsage = permissionUsage.CreateOperationUsages
 	}
 	if operation == constants.OperationRead {
-		return permissionUsage.ReadOperationUsages
+		operationUsage = permissionUsage.ReadOperationUsages
 	}
 	if operation == constants.OperationUpdate {
-		return permissionUsage.UpdateOperationUsages
+		operationUsage = permissionUsage.UpdateOperationUsages
 	}
 	if operation == constants.OperationDelete {
-		return permissionUsage.DeleteOperationUsages
+		operationUsage = permissionUsage.DeleteOperationUsages
 	}
 
 	if operation == constants.OperationExecute {
-		return permissionUsage.ExecuteOperationUsages
+		operationUsage = permissionUsage.ExecuteOperationUsages
 	}
 
-	return OperationUsage{}
+	// sanitize operationUsage
+	operationUsage.sanitizeDurationUsage()
+
+	return operationUsage
 }
 
 // GetOperationLimitsHumanFriendly outputs the limits in a map of human friendly format.
@@ -595,16 +665,19 @@ func sanitizeNotation(notation string) string {
 			//rebuild the notation , only add section if it starts with a valid section prefix
 			if strings.HasPrefix(currentSectionString, "c") || //for first section that could be something like "cr-de"
 				strings.HasPrefix(currentSectionString, "-") || // for something like "-r---"
+				strings.HasPrefix(currentSectionString, "q=") || // for quotaLimit
 				strings.HasPrefix(currentSectionString, "c=") || // for limit section
 				strings.HasPrefix(currentSectionString, "r=") || // for limit section
 				strings.HasPrefix(currentSectionString, "u=") || // for limit section
 				strings.HasPrefix(currentSectionString, "d=") || // for limit section
 				strings.HasPrefix(currentSectionString, "e=") {
 
-				// for the section to be added, it also needs to meet certain criterias
+				// for the section to be added, it also needs to meet certain criteria
 				// the length of the string has to be at least 5 characters long , e.g "crud-" and "c=all:5" both are 5 or more characters
 				// if it's not last index add separator
-				if len([]rune(currentSectionString)) >= 5 {
+				// q= quota section could be less than 5 characters long , e.g q=1, so we would add condition for that , for quota, it has to be greater or equal to 3 characters
+				if (len([]rune(currentSectionString)) >= 5 && strings.HasPrefix(currentSectionString, "q=") == false) ||
+					(strings.HasPrefix(currentSectionString, "q=") && len([]rune(currentSectionString)) >= 3) {
 					if i != len(notationSections)-1 {
 						newNotation = newNotation + currentSectionString + constants.NotationSectionSeparator
 					} else {
@@ -637,7 +710,9 @@ func sanitizeNotation(notation string) string {
 //
 // Below is an example of what a notation looks like . Read in the repo documentation for details
 //
-//	crud-|c=month:0,day:100,batch:1,minute:5,hour:20,week:500,fortnight:700,year:10000,quarter:5000,custom:[per_5_minutes_4 & per_3_days_50]|r=..
+// q=30 standards for QuotaLimit of 30
+//
+//	crud-|q=30|c=month:0,day:100,batch:1,minute:5,hour:20,week:500,fortnight:700,year:10000,quarter:5000,custom:[per_5_minutes_4 & per_3_days_50]|r=..
 func NotationToPermission(notation string) Permission {
 	var finalPermission Permission
 	// just in case there is space in the string, let's trim space, but there shouldn't be space
@@ -648,7 +723,7 @@ func NotationToPermission(notation string) Permission {
 	var operationPermissionSection string //for the first section like cr-de
 	// first let's split the notation into its different section
 	if strings.Contains(notation, constants.NotationSectionSeparator) {
-		fmt.Println("bloombla")
+
 		notationSections = strings.Split(notation, constants.NotationSectionSeparator)
 		operationPermissionSection = notationSections[0]
 		// There should always be at most 6 sections , and at least one section e.g. cr-de| this implies create, read, delete, execute is allowed and all its limits are unlimited, except batch limits which is set to 1 by default
@@ -660,8 +735,6 @@ func NotationToPermission(notation string) Permission {
 		// the notation doesn't contain the separator, so we assume it's just the operationPermissionSection without the limits section
 		operationPermissionSection = notation
 	}
-	fmt.Println("DAAA NOTEATION")
-	fmt.Println(notation)
 
 	// if we got here, it means the notation is properly formed so far
 	// let's check the first section if its properly formed, if it is we can proceed,
@@ -720,19 +793,20 @@ func NotationToPermission(notation string) Permission {
 	// NOTE The remaining sections don't have to be set if I want to let all the limits be unlimited and the batch limit to be 1
 	// the remaining sections is for limits , create limits for example would be defined like :
 	// c=month:0,day:100,batch:1,minute:5,hour:20,week:500,fortnight:700,year:10000,quarter:5000,custom:[per_5_minutes_4,per_3_days_50]
+	// one of the limits section can be the quota limit q=int , if its not set , it assumes quota is unlimited
 	// for other operations "c=" can just be replaced with "r=" or "u=" or "d=" or "e="
 	// Just like the operation permission section similarly the proceeding sections should also follow an order
-	// e.g c-ude|c=....|r=...|u=...|d=...|e=...
-	// Its required that in each operation limit section, at least the batch limit should be set
+	// e.g c-ude|q=5|c=....|r=...|u=...|d=...|e=...
+	// Its required that in each operation limit section, at least the batch limit should be set (else its pegged at 1 by default)
 	// The individual limits within each operation limit section can be arranged in any order
 	// If any limit is excluded, its assumed that the value is unlimited , batch limit can never be unlimited, this is why if its not set, it automatically enforced as 1, where corresponding operation permission is granted
 	// Let's start the loop , we would be starting the loop from index 1, since index 0 is the operation permissions which we have already handled
 	// Operation Limit sections can be left empty even if the said operation is granted permission, this would imply that batch limit is the default of 1 and all other limits are unlimited
 	// for example if you have crud-| implies create, read, update and delete permission is granted, and all its limits are unlimited and all its batch limit is set to 1
 	// only run this loop if limits are set this means the notationSections is greater than 1
-	fmt.Printf("COUNTEDDDD %d \n", len(notationSections))
+
 	if len(notationSections) > 1 {
-		fmt.Println("GOTTA HERE")
+
 		for i := 1; i < len(notationSections); i++ {
 			//reset include operation limit
 			includeThisOperationLimit = false
@@ -740,6 +814,20 @@ func NotationToPermission(notation string) Permission {
 			// Let's check if current section is properly formed, this isn't a perfect test for a properly formed operation limit section , but it would do for now
 			// todo improve this
 
+			// if its Quota Limit section
+			if strings.HasPrefix(notationSections[i], "q=") == true {
+				// Quota section split
+				quotaSectionSplit := strings.Split(notationSections[i], "=")
+				quotaValue, quotaValueErr := stringToPositiveIntegerOrZero(quotaSectionSplit[1])
+				if quotaValueErr != nil {
+					fmt.Println("Malformed quota limit in notation")
+					finalPermission = Permission{}
+					return finalPermission
+				} else {
+					finalPermission.QuotaLimit = quotaValue
+				}
+
+			}
 			if strings.HasPrefix(notationSections[i], "c=") == true && finalPermission.Create == true {
 				includeThisOperationLimit = true
 				currentLimitSection = constants.OperationCreate
@@ -952,7 +1040,7 @@ func getNotationOperationLimits(operationLimitsString string) (OperationLimit, e
 		// so it has to at least contain ":", and then when split , should be at least a len of 2
 		// we also need to make sure that we don't have more than one ":", this is to ensure that users always separate the limits with comma
 		if strings.Contains(operationLimitsString, constants.NotationOperationLimitAndValueSeparator) == true && strings.Count(operationLimitsString, constants.NotationOperationLimitAndValueSeparator) == 1 {
-			fmt.Println(operationLimitsString)
+
 			splitSingleLimit := strings.Split(operationLimitsString, constants.NotationOperationLimitAndValueSeparator)
 			// the len has to be at exactly 2, else it's not valid
 			if len(splitSingleLimit) == 2 {
@@ -1076,4 +1164,201 @@ func RequestMethodToOperation(method string) string {
 	}
 
 	return ""
+}
+
+func stringToPositiveIntegerOrZero(s string) (uint, error) {
+	//remove all spaces
+	s = removeAllWhiteSpaces(s)
+	// Check if the string is empty
+	if len(s) == 0 {
+		return 0, errors.New("string is empty")
+	}
+
+	// Try to convert the string to a uint
+	i, err := strconv.ParseUint(s, 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("invalid integer: %w", err)
+	}
+
+	return uint(i), nil
+}
+
+func removeAllWhiteSpaces(s string) string {
+	s = strings.ReplaceAll(s, "\n", "")
+	s = strings.ReplaceAll(s, "\r", "")
+	s = strings.ReplaceAll(s, "\t", "")
+	s = strings.ReplaceAll(s, " ", "")
+	return s
+}
+
+type UpdateUsageData struct {
+	DoNotReduceQuotaUsageOnDelete bool
+	Operation                     string
+	OperationQuantity             uint
+	OperationTime                 time.Time
+}
+
+func UpdateUsage(updateUsageData UpdateUsageData, usage PermissionUsage) PermissionUsage {
+	var operationUsage OperationUsage
+
+	// for create operation
+	if updateUsageData.Operation == constants.OperationCreate {
+		operationUsage = usage.CreateOperationUsages
+		//increase quota usage by one since we are creating a "resource"
+		usage.QuotaUsage = usage.QuotaUsage + updateUsageData.OperationQuantity
+	}
+
+	if updateUsageData.Operation == constants.OperationRead {
+		operationUsage = usage.ReadOperationUsages
+	}
+
+	if updateUsageData.Operation == constants.OperationUpdate {
+		operationUsage = usage.UpdateOperationUsages
+	}
+
+	if updateUsageData.Operation == constants.OperationDelete {
+		operationUsage = usage.DeleteOperationUsages
+		// let's reduce the QuotaUsage by operationQuantity since the Quota has reduced as a result of delete
+		quotaUsageAfterDelete := usage.QuotaUsage - updateUsageData.OperationQuantity
+		// let's ensure it's not less than 0 , if it is assign 0
+		// normally, this shouldn't happen, but if for some reason it does, set it at 0
+		if quotaUsageAfterDelete < 0 {
+			quotaUsageAfterDelete = 0
+		}
+		usage.QuotaUsage = quotaUsageAfterDelete
+	}
+
+	if updateUsageData.Operation == constants.OperationExecute {
+		operationUsage = usage.ExecuteOperationUsages
+	}
+
+	//Let's reduce all the operation usage where necessary if duration has passed from the LastTime
+	// What does this mean? for example, if the lastTime we updated a file was 2:55pm and the current time is 3:56pm , this means 1 hour and 1 minute has passed .
+	// This means more than an hour and minute has passed, so we need to reset OperationUsage.WithinTheLastMinute and OperationUsage.WithinTheLastHour and set those values to current operationQuantity value
+	// But if the current time is 3:01 pm , this means  6 minutes has passed and we only need to reset WithinTheLastMinute and increment every other duration limit including WithinTheLastHour
+	// todo remember to do same for custom duration, leaving it put for now because its a bit more complex
+
+	// let's first update firstTime if this is the first time we are updating the usage
+	if operationUsage.FirstTime.IsZero() {
+		operationUsage.FirstTime = updateUsageData.OperationTime
+	}
+
+	durationFromLastTime := updateUsageData.OperationTime.Sub(operationUsage.LastTime)
+
+	// update last quantity
+	operationUsage.LastQuantity = updateUsageData.OperationQuantity
+
+	// update all time
+	operationUsage.AllTime = operationUsage.AllTime + updateUsageData.OperationQuantity
+
+	// update within the last minute
+	// if duration from last time is less than or equal to a minute, add the operation quantity
+	if durationFromLastTime <= time.Minute {
+		operationUsage.WithinTheLastMinute = operationUsage.WithinTheLastMinute + updateUsageData.OperationQuantity
+	}
+	// if it's greater than reset and set it to current operation quantity
+	if durationFromLastTime > time.Minute {
+		operationUsage.WithinTheLastMinute = updateUsageData.OperationQuantity
+	}
+
+	// update within the last hour
+	// if duration from last time is less than or equal to an hour, add the operation quantity
+	if durationFromLastTime <= time.Hour {
+		operationUsage.WithinTheLastHour = operationUsage.WithinTheLastHour + updateUsageData.OperationQuantity
+	}
+	// if it's greater than, reset and set it to current operation quantity
+	if durationFromLastTime > time.Hour {
+		operationUsage.WithinTheLastHour = updateUsageData.OperationQuantity
+	}
+
+	// update within the last day
+	// if duration from last time is less than or equal to a day, add the operation quantity
+	// we have 24 hours in a day. so multiply 24 by an hour
+	if durationFromLastTime <= constants.TimeDurationDay {
+		operationUsage.WithinTheLastDay = operationUsage.WithinTheLastDay + updateUsageData.OperationQuantity
+	}
+	// if it's greater than, reset and set it to current operation quantity
+	if durationFromLastTime > constants.TimeDurationDay {
+		operationUsage.WithinTheLastDay = updateUsageData.OperationQuantity
+	}
+
+	// update within the last week
+	// if duration from last time is less than or equal to a week, add the operation quantity
+	// we have 7 days in a week. so multiply 7 by a day
+	if durationFromLastTime <= constants.TimeDurationWeek {
+		operationUsage.WithinTheLastWeek = operationUsage.WithinTheLastWeek + updateUsageData.OperationQuantity
+	}
+	// if it's greater than, reset and set it to current operation quantity
+	if durationFromLastTime > constants.TimeDurationWeek {
+		operationUsage.WithinTheLastWeek = updateUsageData.OperationQuantity
+	}
+
+	// update within the last fortnight
+	// if duration from last time is less than or equal to a fortnight, add the operation quantity
+	// we have 14 days in a fortnight. so multiply 14 by a day
+	if durationFromLastTime <= constants.TimeDurationFortnight {
+		operationUsage.WithinTheLastFortnight = operationUsage.WithinTheLastFortnight + updateUsageData.OperationQuantity
+	}
+	// if it's greater than, reset and set it to current operation quantity
+	if durationFromLastTime > constants.TimeDurationFortnight {
+		operationUsage.WithinTheLastFortnight = updateUsageData.OperationQuantity
+	}
+
+	// update within the last month
+	// if duration from last time is less than or equal to a month, add the operation quantity
+	// we have 30 days in a month. so multiply 30 by a day
+	if durationFromLastTime <= constants.TimeDurationMonth {
+		operationUsage.WithinTheLastMonth = operationUsage.WithinTheLastMonth + updateUsageData.OperationQuantity
+	}
+	// if it's greater than, reset and set it to current operation quantity
+	if durationFromLastTime > constants.TimeDurationMonth {
+		operationUsage.WithinTheLastMonth = updateUsageData.OperationQuantity
+	}
+
+	// update within the last quarter
+	// if duration from last time is less than or equal to a quarter, add the operation quantity
+	// we have 90 days in a quarter. so multiply 90 by a day
+	if durationFromLastTime <= constants.TimeDurationQuarter {
+		operationUsage.WithinTheLastQuarter = operationUsage.WithinTheLastQuarter + updateUsageData.OperationQuantity
+	}
+	// if it's greater than, reset and set it to current operation quantity
+	if durationFromLastTime > constants.TimeDurationQuarter {
+		operationUsage.WithinTheLastQuarter = updateUsageData.OperationQuantity
+	}
+
+	// update within the last year
+	// if duration from last time is less than or equal to a year, add the operation quantity
+	// we have 360 days in a year. so multiply 360 by a day
+	if durationFromLastTime <= constants.TimeDurationYear {
+		operationUsage.WithinTheLastYear = operationUsage.WithinTheLastYear + updateUsageData.OperationQuantity
+	}
+	// if it's greater than, reset and set it to current operation quantity
+	if durationFromLastTime > constants.TimeDurationYear {
+		operationUsage.WithinTheLastYear = updateUsageData.OperationQuantity
+	}
+
+	// todo custom durations
+
+	// update lastTime always
+	operationUsage.LastTime = updateUsageData.OperationTime
+
+	switch updateUsageData.Operation {
+	case constants.OperationCreate:
+		usage.CreateOperationUsages = operationUsage
+		break
+	case constants.OperationRead:
+		usage.ReadOperationUsages = operationUsage
+		break
+	case constants.OperationUpdate:
+		usage.UpdateOperationUsages = operationUsage
+		break
+	case constants.OperationDelete:
+		usage.DeleteOperationUsages = operationUsage
+		break
+	case constants.OperationExecute:
+		usage.ExecuteOperationUsages = operationUsage
+		break
+	}
+	return usage
+
 }

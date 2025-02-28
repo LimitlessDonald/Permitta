@@ -1,5 +1,7 @@
 package permittaConstants
 
+import "time"
+
 const (
 	Unlimited                          = 0
 	UnlimitedString                    = "unlimited"
@@ -40,4 +42,14 @@ const (
 	NotationOperationQuarterLimitKey   = "quarter"
 	NotationOperationYearLimitKey      = "year"
 	NotationOperationCustomLimitKey    = "custom"
+)
+
+const (
+	TimeDurationDay       = 24 * time.Hour        // we have 24 hours in a day
+	TimeDurationWeek      = 7 * TimeDurationDay   // 7 days in a week
+	TimeDurationFortnight = 14 * TimeDurationDay  // 14 days in a fortnight
+	TimeDurationMonth     = 30 * TimeDurationDay  // 30 days in a month
+	TimeDurationQuarter   = 90 * TimeDurationDay  // 90 days in a quarter
+	TimeDurationYear      = 360 * TimeDurationDay // 360 days in a year
+
 )
