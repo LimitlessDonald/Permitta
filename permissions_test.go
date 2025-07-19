@@ -1,8 +1,9 @@
 package permitta
 
 import (
+	"encoding/json"
 	"fmt"
-	constants "gitlab.com/launchbeaver/permitta/constants"
+	constants "github.com/LimitlessDonald/permitta/constants"
 	"strconv"
 	"testing"
 	"time"
@@ -43,7 +44,7 @@ var SampleOrgPermission = Permission{
 	},
 }
 
-var SampleOrgNotation = NotationToPermission("cr--e|r=batch:2|q=6")
+var SampleOrgNotation = NotationToPermission("cr--e|r=batch:2|q=60")
 var SampleUserPermission = Permission{
 	QuotaLimit: 3,
 	Create:     true,
@@ -120,10 +121,9 @@ func TestIsOperationPermitted(t *testing.T) {
 }
 
 func TestIsOperationPermittedWithUsage(t *testing.T) {
-	fmt.Println(SampleOrgNotation)
 	permissionRequestData := PermissionWithUsageRequestData{
 		PermissionRequestData: PermissionRequestData{
-			Operation:               "read",
+			Operation:               "create",
 			UserEntityPermissions:   SampleUserPermission,
 			RoleEntityPermissions:   Permission{},
 			GroupEntityPermissions:  Permission{},
@@ -149,7 +149,10 @@ func TestIsOperationPermittedWithUsage(t *testing.T) {
 	}
 
 	isOperationPermittedWithUsage := IsOperationPermittedWithUsage(permissionRequestData)
-	t.Errorf("Expected true got %s", strconv.FormatBool(isOperationPermittedWithUsage))
+	if isOperationPermittedWithUsage == false {
+		t.Errorf("Expected true got %s", strconv.FormatBool(isOperationPermittedWithUsage))
+	}
+
 }
 
 //func TestNotationToPermission(t *testing.T) {
@@ -160,7 +163,29 @@ func TestIsOperationPermittedWithUsage(t *testing.T) {
 //
 //}
 
-func TestGetOperationUsages(t *testing.T) {
-	fmt.Println("Sample sanitized usage")
-	fmt.Println(GetOperationUsages(constants.OperationCreate, SampleUserPermissionUsage))
+//func TestGetOperationUsages(t *testing.T) {
+//	fmt.Println("Sample sanitized usage")
+//	fmt.Println(GetOperationUsages(constants.OperationCreate, SampleUserPermissionUsage))
+//}
+
+func TestIsEntityOperationPermitted(t *testing.T) {
+	//m|min|mins|minute|minutes|
+	notation := "-rude|start=1752817851|end=1752821969|q=5|r=year:56"
+	permission := NotationToPermission(notation)
+	isOperationPermitted := IsEntityOperationPermitted(constants.OperationRead, permission)
+	fmt.Printf("%+v\n", permission)
+	if isOperationPermitted == false {
+		t.Errorf("Simple permission check faileds")
+	}
+}
+
+func TestPlayground(t *testing.T) {
+
+	jsonBytes, err := json.Marshal(PermissionUsage{})
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	fmt.Println(string(jsonBytes))
 }

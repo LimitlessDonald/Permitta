@@ -3,7 +3,7 @@ package permitta
 import (
 	"errors"
 	"fmt"
-	constants "gitlab.com/launchbeaver/permitta/constants"
+	constants "github.com/LimitlessDonald/permitta/constants"
 	"reflect"
 	"regexp"
 	"strconv"
@@ -21,6 +21,8 @@ type Permission struct {
 	// Every time I delete(Delete Operation) a resource (files in this case), I reduce the QuotaUsage by the OperationQuantity , when I create(Create Operation) , I also increase the QuotaUsage by the OperationQuantity
 	// If QuotaLimit is 0, this means it's unlimited , so a unlimited number of resource can exist, this also implies that Create Operation is essentially unlimited, BUT the duration based limits and AllTime limit would still take effect
 	QuotaLimit uint
+	StartTime  time.Time
+	EndTime    time.Time
 	Create     bool `json:"create"`
 	Read       bool `json:"read"`
 	Update     bool `json:"update"`
@@ -169,6 +171,8 @@ func IsOperationPermitted(permissionRequestData PermissionRequestData) bool {
 		return false
 	}
 
+	// if the EntityPermissionOrder and all the entity permissions are empty, but a operation is provided, we can just assume that we are checking permission for a user entity , this enables simple permission checks without writing too much code
+
 	// if at this point permissionOrder is empty , it means invalid entities were used
 	if len(permissionOrder) < 1 {
 		fmt.Println("Entity permission order is invalid")
@@ -234,6 +238,20 @@ func IsOperationPermittedWithUsage(requestData PermissionWithUsageRequestData) b
 
 			// Get current entity permission
 			entityPermissions = getEntityPermission(currentEntity, requestData.PermissionRequestData)
+
+			// we want to ensure that the startTime of the permission is NOW or greater, if it's before NOW, don't grant permission
+			// in simpler terms this means we are attempting to get permission for something before the time its permitted
+			// also ensure start time is not empty
+			if entityPermissions.StartTime.Before(time.Now()) && entityPermissions.StartTime.IsZero() == false {
+				return false
+			}
+
+			// in the same vein if the permission has expired, this means if now is greater than EndTime
+			// also ensure endTime is not empty
+			if time.Now().After(entityPermissions.EndTime) && entityPermissions.EndTime.IsZero() == false {
+				return false
+			}
+
 			// first we check current operation is permitted for this entity, before moving to its limits
 			isCurrentEntityOperationPermitted := IsEntityOperationPermitted(requestData.Operation, entityPermissions)
 			if isCurrentEntityOperationPermitted == false {
@@ -424,6 +442,20 @@ func IsOperationPermittedWithUsage(requestData PermissionWithUsageRequestData) b
 func IsEntityOperationPermitted(operation string, entityPermissions Permission) bool {
 	// ensure the operation is valid
 	if isOperationValid(operation) == false {
+		return false
+	}
+
+	// we want to ensure that the startTime of the permission is NOW or greater, if it's before NOW, don't grant permission
+	// in simpler terms this means we are attempting to get permission for something before the time its permitted
+	// also ensure start time is not empty
+	if time.Now().Before(entityPermissions.StartTime) && (entityPermissions.StartTime.IsZero() == false) {
+
+		return false
+	}
+
+	// in the same vein if the permission has expired, this means if now is greater than EndTime
+	// also ensure endTime is not empty
+	if time.Now().After(entityPermissions.EndTime) && (entityPermissions.EndTime.IsZero() == false) {
 		return false
 	}
 
@@ -666,6 +698,8 @@ func sanitizeNotation(notation string) string {
 			if strings.HasPrefix(currentSectionString, "c") || //for first section that could be something like "cr-de"
 				strings.HasPrefix(currentSectionString, "-") || // for something like "-r---"
 				strings.HasPrefix(currentSectionString, "q=") || // for quotaLimit
+				strings.HasPrefix(currentSectionString, "start=") || // for quotaLimit
+				strings.HasPrefix(currentSectionString, "end=") || // for quotaLimit
 				strings.HasPrefix(currentSectionString, "c=") || // for limit section
 				strings.HasPrefix(currentSectionString, "r=") || // for limit section
 				strings.HasPrefix(currentSectionString, "u=") || // for limit section
@@ -828,6 +862,32 @@ func NotationToPermission(notation string) Permission {
 				}
 
 			}
+			if strings.HasPrefix(notationSections[i], "start=") == true {
+
+				startTimeSectionSplit := strings.Split(notationSections[i], "=")
+				startTimeValue, startTimeValueErr := stringToPositiveIntegerOrZero(startTimeSectionSplit[1])
+
+				if startTimeValueErr != nil {
+					fmt.Println("Malformed start time in notation")
+					finalPermission = Permission{}
+					return finalPermission
+				} else {
+					finalPermission.StartTime = time.Unix(int64(startTimeValue), 0)
+				}
+			}
+
+			if strings.HasPrefix(notationSections[i], "end=") == true {
+				endTimeSectionSplit := strings.Split(notationSections[i], "=")
+				endTimeValue, endTimeValueErr := stringToPositiveIntegerOrZero(endTimeSectionSplit[1])
+				if endTimeValueErr != nil {
+					fmt.Println("Malformed start time in notation")
+					finalPermission = Permission{}
+					return finalPermission
+				} else {
+					finalPermission.EndTime = time.Unix(int64(endTimeValue), 0)
+				}
+			}
+
 			if strings.HasPrefix(notationSections[i], "c=") == true && finalPermission.Create == true {
 				includeThisOperationLimit = true
 				currentLimitSection = constants.OperationCreate
@@ -1219,13 +1279,17 @@ func UpdateUsage(updateUsageData UpdateUsageData, usage PermissionUsage) Permiss
 	if updateUsageData.Operation == constants.OperationDelete {
 		operationUsage = usage.DeleteOperationUsages
 		// let's reduce the QuotaUsage by operationQuantity since the Quota has reduced as a result of delete
-		quotaUsageAfterDelete := usage.QuotaUsage - updateUsageData.OperationQuantity
-		// let's ensure it's not less than 0 , if it is assign 0
-		// normally, this shouldn't happen, but if for some reason it does, set it at 0
-		if quotaUsageAfterDelete < 0 {
-			quotaUsageAfterDelete = 0
+		// don't reduce it if DoNotReduceQuotaUsageOnDelete is true
+		if updateUsageData.DoNotReduceQuotaUsageOnDelete == false {
+			quotaUsageAfterDelete := usage.QuotaUsage - updateUsageData.OperationQuantity
+			// let's ensure it's not less than 0 , if it is assign 0
+			// normally, this shouldn't happen, but if for some reason it does, set it at 0
+			if quotaUsageAfterDelete < 0 {
+				quotaUsageAfterDelete = 0
+			}
+			usage.QuotaUsage = quotaUsageAfterDelete
 		}
-		usage.QuotaUsage = quotaUsageAfterDelete
+
 	}
 
 	if updateUsageData.Operation == constants.OperationExecute {
