@@ -3,7 +3,7 @@ package permitta
 import (
 	"encoding/json"
 	"fmt"
-	constants "github.com/LimitlessDonald/permitta/constants"
+	constants "github.com/limitlessdonald/permitta/constants"
 	"strconv"
 	"testing"
 	"time"

@@ -1,13 +1,13 @@
-Permitta is an intuitive go library, which aims to help handle any kind of permission/access control in a simple and easy to understand way, even for beginners . 
+Permitta is an intuitive go library, which aims to help handle any kind of permission/access control in a simple and easy to understand way, even for beginners .
 
-The fact that its intuitive doesn't take away how powerful it is to handle very complex and frequently used permission scenarios in different types of projects . 
+The fact that its intuitive doesn't take away how powerful it is to handle very complex and frequently used permission scenarios in different types of projects .
 
 
-## Why 
+## Why
 
 Almost everything we do in computing these days needs permissions . There are hundreds of permission/access control systems and methods, many of them are not intuitive .
 
-I wanted to create a system that would cover most popular use cases, where you can get started in minutes, whether you are a novice or very experienced programmer, yet still powerful enough to handle complex permissions . 
+I wanted to create a system that would cover most popular use cases, where you can get started in minutes, whether you are a novice or very experienced programmer, yet still powerful enough to handle complex permissions .
 
 I took inspiration from the linux permission system e.g ``` rwxr--r-x ```, but took it some steps further and made it more intuitive
 
@@ -15,7 +15,7 @@ I wanted to be able to handle permissions/access control in a SaaS (or any appli
 
 I wanted to be able to control access for actions including Create, Read, Update, Delete, Execute (remember **CRUDE** - more on this later), I wanted to be able to control how much of each of those actions can be carried out by each user, and how frequently within a specific period of time they can carry out those actions .
 
-I wanted to create a permission/access control system with no dependencies, except the go standard library 
+I wanted to create a permission/access control system with no dependencies, except the go standard library
 
 I wanted to enjoy writing and reading permissions/access control
 
@@ -26,9 +26,9 @@ I did not want to have to write complex DB queries to verify permission and reso
 
 
 
-## Features 
+## Features
 
-- Ability to set create, read, update , delete, execute (CRUDE) operations permissions 
+- Ability to set create, read, update , delete, execute (CRUDE) operations permissions
 - Ability to control start and end time for permissions
 - Ability to set quota limit (Quota is how many of a certain resource can exist at any given time)
 - Ability to set batch limit
@@ -37,16 +37,16 @@ I did not want to have to write complex DB queries to verify permission and reso
 - Ability to verify permissions based on entity i.e (user, role, group, domain, organisation)
 - Ability to set entity permission order    (the flow/order in which the permission should be checked e.g org->domain->group->role->user)
 
-## Installation 
+## Installation
 ```shell
-go get -u github.com/LimitlessDonald/Permitta
+go get -u github.com/limitlessDonald/permitta
 ```
-## Usage 
+## Usage
 
 
 ### Example Scenario 1 - A file management software as a service with multiple users
 1. Assume there is a file `file2.mp4` belonging to user ; `eagle`
-2. Assume we have a database with three columns `username`, `filename`, `permission` 
+2. Assume we have a database with three columns `username`, `filename`, `permission`
 3. Assume we have an existing function that saves file permission to database called `saveFilePermission`, the package currently doesn't save permissions for you, you have to implement that whichever way you deem fit in your application
 4. Assume we have a function that gets file permission for a certain user called `getFilePermission`
 
@@ -56,9 +56,9 @@ package main
 
 import (
 	"fmt"
-	"github.com/LimitlessDonald/permitta"
+	"github.com/limitlessDonald/permitta"
 	
-	permittaConstants "github.com/LimitlessDonald/permitta/constants"
+	permittaConstants "github.com/limitlessDonald/permitta/constants"
 	
 )
 
@@ -101,12 +101,12 @@ Let's take some assumptions and facts into consideration to make the example eas
 
 1. Assume there are many farms registered on the farm management SaaS, each of this farm is an `organization`, one of them is a farm called `Blue Acres Farm`
 2. Assume there are multiple `domains` or more precisely `Blue Acres Farm` has multiple branches , one in the US and another in the France. The US and France branches are `domains`
-3. Assume there are multiple `groups` , or more precisely departments in each of the `domains` , like Accounting , Marketing, Sales, IT, Engineering e.t.c 
+3. Assume there are multiple `groups` , or more precisely departments in each of the `domains` , like Accounting , Marketing, Sales, IT, Engineering e.t.c
 4. Assume there are `roles` in each of the `groups` , take for example the `Accounting` group/department , could have roles like `Budgeting Manager`, `Auditor` and the `Engineering` could have `Maintenance Engineer` and `Electrical Engineer`
-5. Assume there are `users` for each of these `roles` , e.g there could be multiple `Budgeting Managers` , like users `Anna` and `Pierre` 
+5. Assume there are `users` for each of these `roles` , e.g there could be multiple `Budgeting Managers` , like users `Anna` and `Pierre`
 6. Organization, domain, group, role, user in permitta are all described as `entities` . So the `user` , `Anna` is an `entity`, just like her role `Budgeting Manager` is an `entity`
 
-Now that we have all the above cleared up, before we go into a full code example, let's do a brief "anatomy" of what a very complex permission notation for an entity looks like and explain it 
+Now that we have all the above cleared up, before we go into a full code example, let's do a brief "anatomy" of what a very complex permission notation for an entity looks like and explain it
 ```
 
  notation:="cr-d-|start=1735693200000|end=1767229200000|q=5|c=batch:2,all:100,minute:3,hour:103,day:7,week:20,fortnight:30|r=all:100000,quarter:80000|u=year:10000,month:5000,custom:[per_32_seconds_67 & per_9_weeks_1200]"
@@ -114,26 +114,26 @@ Now that we have all the above cleared up, before we go into a full code example
 **Explanation:**
 - The notation is divided into sections using the separator `|`
 - The first section `cr-d-` means : `c` Create operation allowed, `r` read allowed, `-` update NOT allowed, `d` delete allowed, `-` execute not allowed
--`start=1735693200000` means the entity won't be permitted for anything, if a permission request is made before the unix time `1735693200000`. In other words permission starts at this time
+  -`start=1735693200000` means the entity won't be permitted for anything, if a permission request is made before the unix time `1735693200000`. In other words permission starts at this time
 - `end=1767229200000` means permission ends at this time `1767229200000`
 - `q=5` means Quota=5 , this is useful when you store resource/operation usage/count in a DB . if `q=5` for videos for example for the Engineering department/`group`, at any given time, they can't have more than 5 videos stored
 - Any section starting with `c=`,`r=`,`u=`,`d=`,`e=` is for defining limits for specific operation where `c=` is for `Create` operation limits and so on.
-- See [Operation Limits](#operation-limits) for all the available limits and what they mean 
+- See [Operation Limits](#operation-limits) for all the available limits and what they mean
 - The next section `c=batch:2,all:100,minute:3,hour:103,day:7,week:20,fortnight:30`
   1. As we already highlighted above `c=` means "The following limits are for `create` operations"
-  2. `batch=2` means the entity can't create more than two resources at a time 
+  2. `batch=2` means the entity can't create more than two resources at a time
   3. `all:100` means the all-time limit of resources that can be created by the entity is `100`, not to be confused with `Quota`, See [Operation Limits](#operation-limits) to understand the difference
-  4. `minute:3` means only `3` resources can be created by the entity every minute. Permission would be denied if the entity tries to create a fourth resource within a minute 
-  5. `hour:100`,`day:7`,`week:20`,`fortnight:30` are similar to the explanation for the `minute` limit 
-- I believe the remaining sections should be self-explanatory , except where we have `custom:[per_32_seconds_67 & per_9_weeks_1200]` **NOTE THAT CUSTOM DURATION IS STILL UNDER DEVELOPMENT** . However, it simply means we have a list of custom durations : 
+  4. `minute:3` means only `3` resources can be created by the entity every minute. Permission would be denied if the entity tries to create a fourth resource within a minute
+  5. `hour:100`,`day:7`,`week:20`,`fortnight:30` are similar to the explanation for the `minute` limit
+- I believe the remaining sections should be self-explanatory , except where we have `custom:[per_32_seconds_67 & per_9_weeks_1200]` **NOTE THAT CUSTOM DURATION IS STILL UNDER DEVELOPMENT** . However, it simply means we have a list of custom durations :
   1. `per_32_seconds_67` means the entity is allowed to perform `67` `update` operations `every 32 seconds`
   2. `&` is the separator for the list of custom duration limits
-  3. `per_9_weeks_1200` means the entity is allowed to perform `1200` `update` operations `every 9 weeks` 
-- If limits for any operation is left out from the notation, the default for all the limits would be unlimited, except `batch` which is always `1` by default 
+  3. `per_9_weeks_1200` means the entity is allowed to perform `1200` `update` operations `every 9 weeks`
+- If limits for any operation is left out from the notation, the default for all the limits would be unlimited, except `batch` which is always `1` by default
 - **NOTE** : For limits to work, it has to be paired with `usages` that you have stored in your preferred DB, Permitta provides a self-explanatory struct to help store usages and a function to easily update usage
 
-    
-Let's proceed with the example 
+
+Let's proceed with the example
 
 ```go
 // Assume we have `usage` column in each db table for org,branches(domain),departments(group),roles,users
@@ -293,38 +293,41 @@ Its going to be `AccessDenied`
 
 Why ?
 
-Here is why : 
+Here is why :
 
 We are trying to carry out a `delete` operation. Adesewa's permission allows a delete operation, but because the  permissions higher in the hierarchy as defined with `EntityPermissionOrder` for `domain`, `group` and `role` entities DO NOT permit `delete` operations
 
-I believe this explains how permitta works. I would be improving this documentation soon, there is still so much it can do I have not documented yet . 
+I believe this explains how permitta works. I would be improving this documentation soon, there is still so much it can do I have not documented yet .
 
 ## Operation Limits
 - **Batch** (notation key (NK) =`batch`) - How many resources for a certain operations is permitted at a time, if not defined, default limit is 1. e.g requesting permission to create 5 files at a time
 - **AllTime limit** (NK=`all` ) = The total count of a particular operation that can be carried out by an entity, regardless of other limits . A use case is a scenario where daily limit of creating files is 10 files, if 10 files are created that day, one is deleted, and one new file is created, 11 files have been created. if the AllTime limit is 100 for `create` operation, this means there is remaining allowance to create new files is now (100-11)=89, regardless of what the weekly, monthly, yearly limit is. The default for this limit if not defined is unlimited
-- **Minute** (NK=`minute`) = The total count of how much an entity is permitted carry out an operation for a resource per minute 
-- **Hour** (NK=`hour`) = The total count of how much an entity is permitted carry out an operation for a resource per hour 
-- **Day** (NK=`day`) = The total count of how much an entity is permitted carry out an operation for a resource per day 
-- **Week** (NK=`week`) = The total count of how much an entity is permitted carry out an operation for a resource per week 
-- **Fortnight** (NK=`fortnight`) = The total count of how much an entity is permitted carry out an operation for a resource per fortnight (14 days) 
-- **Month** (NK=`month`) = The total count of how much an entity is permitted carry out an operation for a resource per month (30 days ) 
-- **Quarter** (NK=`quarter`) = The total count of how much an entity is permitted carry out an operation for a resource per month (90 days ) 
-- **Year** (NK=`year`) = The total count of how much an entity is permitted carry out an operation for a resource per year (360 days ) 
+- **Minute** (NK=`minute`) = The total count of how much an entity is permitted carry out an operation for a resource per minute
+- **Hour** (NK=`hour`) = The total count of how much an entity is permitted carry out an operation for a resource per hour
+- **Day** (NK=`day`) = The total count of how much an entity is permitted carry out an operation for a resource per day
+- **Week** (NK=`week`) = The total count of how much an entity is permitted carry out an operation for a resource per week
+- **Fortnight** (NK=`fortnight`) = The total count of how much an entity is permitted carry out an operation for a resource per fortnight (14 days)
+- **Month** (NK=`month`) = The total count of how much an entity is permitted carry out an operation for a resource per month (30 days )
+- **Quarter** (NK=`quarter`) = The total count of how much an entity is permitted carry out an operation for a resource per month (90 days )
+- **Year** (NK=`year`) = The total count of how much an entity is permitted carry out an operation for a resource per year (360 days )
 - **Custom** (NK=`custom`) = Custom duration limit of any kind (`Work in Progress`)
 
 
 
 ## Limits Defaults when not defined
-1. Batch is always 1 for all operations 
+1. Batch is always 1 for all operations
 2. Every other limit is unlimited
 
 ## Roadmap
 1. Improve readme documentation
-2. Improve code documentation 
+2. Improve code documentation
 3. Improve error handling
-4. Clean up unused code 
+4. Clean up unused code
 5. Make handling permission with usage simpler
-6. Do proper test coverage 
-7. If operation is not permitted include some feedback on why operation is not permitted 
+6. Do proper test coverage
+7. If operation is not permitted include some feedback on why operation is not permitted
 
-## License : MIT 
+## License : MIT
+
+## Notice:
+If you are hiring, I am currently open . Kindly send me a message https://x.com/LimitlessDonald

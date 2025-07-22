@@ -3,7 +3,7 @@ package permitta
 import (
 	"errors"
 	"fmt"
-	constants "github.com/LimitlessDonald/permitta/constants"
+	constants "github.com/limitlessdonald/permitta/constants"
 	"reflect"
 	"regexp"
 	"strconv"

@@ -1,3 +1,3 @@
-module github.com/LimitlessDonald/permitta
+module github.com/limitlessdonald/permitta
 
 go 1.23.5
